@@ -1,0 +1,164 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - ./mongo-data:/data/db
+    ports:
+      - "37217:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "HOME=/tmp mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./redis-data:/data
+    ports:
+      - "36379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - ./minio-data:/data
+    ports:
+      - "39000:9000"
+      - "39001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      i=0;
+      until mc alias set local http://minio:9000 $$MINIO_ACCESS_KEY $$MINIO_SECRET_KEY; do
+        i=$$((i+1));
+        if [ $$i -gt 30 ]; then exit 1; fi;
+        sleep 1;
+      done;
+      mc mb -p local/$$MINIO_BUCKET;
+      mc anonymous set none local/$$MINIO_BUCKET;
+      if [ $$MINIO_BUCKET != videos ] && mc ls local/videos >/dev/null 2>&1; then
+        mc mirror --overwrite local/videos local/$$MINIO_BUCKET;
+      fi;
+      exit 0;
+      "
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-contents}
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: api
+      pull: false
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # Always use Compose Mongo inside Docker — never inherit a host/Atlas URI from .env
+      MONGO_URI: mongodb://mongodb:27017/video_streaming
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost,http://localhost:8080,http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-1000}
+      UPLOAD_RATE_LIMIT_MAX: ${UPLOAD_RATE_LIMIT_MAX:-50}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    ports:
+      - "34000:4000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: worker
+      pull: false
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongodb:27017/video_streaming
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      WORKER_TEMP_DIR: /tmp/video-processing
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      api:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: web
+      pull: false
+      args:
+        API_INTERNAL_URL: http://api:4000
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:4000
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_NAME: ${COOKIE_NAME:-video_session}
+    depends_on:
+      - api
+    ports:
+      - "33000:3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "38080:80"
+    depends_on:
+      - api
+      - web
+

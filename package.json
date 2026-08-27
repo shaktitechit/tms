@@ -1,0 +1,33 @@
+{
+  "name": "video-streaming-platform",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Production-ready HLS video streaming platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @video/shared && concurrently -n shared,api,worker,web -c yellow,blue,magenta,green \"npm run dev -w @video/shared\" \"npm run dev -w @video/api\" \"npm run dev -w @video/worker\" \"npm run dev -w @video/web\"",
+    "dev:api": "npm run dev -w @video/api",
+    "dev:worker": "npm run dev -w @video/worker",
+    "dev:web": "npm run dev -w @video/web",
+    "build": "npm run build -w @video/shared && npm run build -w @video/api && npm run build -w @video/worker && npm run build -w @video/web",
+    "start": "concurrently -n api,worker,web -c blue,magenta,green \"npm run start -w @video/api\" \"npm run start -w @video/worker\" \"npm run start -w @video/web\"",
+    "worker": "npm run start -w @video/worker",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run build -w @video/shared && npm run test --workspaces --if-present",
+    "test:api": "npm run test -w @video/api",
+    "test:shared": "npm run test -w @video/shared"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

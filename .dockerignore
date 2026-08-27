@@ -1,0 +1,12 @@
+node_modules
+.git
+.next
+dist
+coverage
+.env
+*.log
+tmp
+apps/web/.next
+apps/api/dist
+apps/worker/dist
+packages/shared/dist

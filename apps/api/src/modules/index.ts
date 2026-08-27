@@ -1,0 +1,50 @@
+import { Router } from 'express';
+import type { AppContext } from '../types.js';
+import { createAudioRouter } from './audio/index.js';
+import { createAuthRouter } from './auth/index.js';
+import { createDepartmentRouter } from './department/index.js';
+import { createDiscussionRouter } from './discussion/index.js';
+import { createImageRouter } from './image/index.js';
+import { createLessonRouter } from './lesson/index.js';
+import { createMemberModuleRouter } from './member-module/index.js';
+import { createModuleRouter } from './module/index.js';
+import { createPdfRouter } from './pdf/index.js';
+import { createQuizRouter } from './quiz/index.js';
+import { createTenantRouter } from './tenant/index.js';
+import { createTextAreaRouter } from './text-area/index.js';
+import { createUserRouter } from './user/index.js';
+import { createVideoRouter } from './video/index.js';
+
+export function createApiRouter(ctx: AppContext): Router {
+  const router = Router();
+  router.use('/auth', createAuthRouter(ctx));
+  router.use('/tenants', createTenantRouter(ctx));
+  router.use('/users', createUserRouter(ctx));
+  router.use('/member-modules', createMemberModuleRouter(ctx));
+  router.use('/departments', createDepartmentRouter(ctx));
+  router.use('/modules', createModuleRouter(ctx));
+  router.use('/lessons', createLessonRouter(ctx));
+  router.use('/text-areas', createTextAreaRouter(ctx));
+  router.use('/audios', createAudioRouter(ctx));
+  router.use('/images', createImageRouter(ctx));
+  router.use('/quizzes', createQuizRouter(ctx));
+  router.use('/pdfs', createPdfRouter(ctx));
+  router.use('/discussions', createDiscussionRouter(ctx));
+  router.use('/videos', createVideoRouter(ctx));
+  return router;
+}
+
+export { createAuthRouter } from './auth/index.js';
+export { createDepartmentRouter } from './department/index.js';
+export { createMemberModuleRouter } from './member-module/index.js';
+export { createModuleRouter } from './module/index.js';
+export { createLessonRouter } from './lesson/index.js';
+export { createTextAreaRouter } from './text-area/index.js';
+export { createAudioRouter } from './audio/index.js';
+export { createImageRouter } from './image/index.js';
+export { createQuizRouter } from './quiz/index.js';
+export { createPdfRouter } from './pdf/index.js';
+export { createDiscussionRouter } from './discussion/index.js';
+export { createTenantRouter } from './tenant/index.js';
+export { createUserRouter } from './user/index.js';
+export { createVideoRouter } from './video/index.js';

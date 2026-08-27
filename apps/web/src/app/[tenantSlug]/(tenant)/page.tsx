@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { DepartmentsListView } from '@/components/DepartmentsListView';
 import { useAuth } from '@/lib/auth';
+import { formatHours, seenProgressFromCompletedPercent, sumDurations } from '@/lib/format';
 import { departmentDetailPath } from '@/lib/roles';
 import {
   useGetTenantMeQuery,
   useListDepartmentsQuery,
+  useListLessonsQuery,
+  useListModulesQuery,
   useListUsersQuery,
-  useListVideosQuery,
 } from '@/store/api';
 
 export default function TenantOverviewPage() {
@@ -18,13 +20,16 @@ export default function TenantOverviewPage() {
   const { user } = useAuth();
   const { data: tenantData } = useGetTenantMeQuery();
   const { data: departmentsData } = useListDepartmentsQuery();
+  const { data: modulesData } = useListModulesQuery();
+  const { data: lessonsData } = useListLessonsQuery();
   const { data: usersData } = useListUsersQuery();
-  const { data: videosData } = useListVideosQuery({ role: 'tenant' });
 
-  const videoCount = videosData?.videos.length ?? 0;
-  const readyCount = videosData?.videos.filter((video) => video.status === 'READY').length ?? 0;
+  const departments = departmentsData?.departments ?? [];
+  const modules = modulesData?.modules ?? [];
+  const lessons = lessonsData?.lessons ?? [];
+  const totalHours = formatHours(sumDurations(lessons));
+  const progress = seenProgressFromCompletedPercent(lessons);
   const userCount = usersData?.users.length ?? 0;
-  const departmentCount = departmentsData?.departments.length ?? 0;
 
   return (
     <div className="space-y-8">
@@ -38,11 +43,14 @@ export default function TenantOverviewPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Videos" value={String(videoCount)} />
-        <Stat label="Ready" value={String(readyCount)} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Stat label="Departments" value={String(departments.length)} />
+        <Stat label="Modules" value={String(modules.length)} />
+        <Stat label="Lessons" value={String(lessons.length)} />
+        <Stat label="Total hours" value={totalHours} />
+        <Stat label="Completed" value={`${progress.completedPercent}%`} />
+        <Stat label="Pending" value={`${progress.pendingPercent}%`} />
         <Stat label="Members" value={String(userCount)} />
-        <Stat label="Departments" value={String(departmentCount)} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

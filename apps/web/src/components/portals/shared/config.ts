@@ -17,13 +17,13 @@ export type PortalConfig = {
 export const PORTALS: Record<PortalId, PortalConfig> = {
   public: {
     id: 'public',
-    label: 'ST Stream',
+    label: 'TMS',
     description: 'Upload, transcode, and stream adaptive HLS video.',
     loginPath: '/login',
   },
   tenant: {
     id: 'tenant',
-    label: 'Tenant admin',
+    label: 'Admin',
     description: 'Manage your organization, members, and all tenant videos.',
     role: 'tenant',
     loginPath: '/login/tenant',
@@ -33,7 +33,7 @@ export const PORTALS: Record<PortalId, PortalConfig> = {
   },
   member: {
     id: 'member',
-    label: 'Member user',
+    label: 'Learner and Tutor',
     description: 'Browse and watch videos in your tenant library.',
     role: 'user',
     loginPath: '/login/user',

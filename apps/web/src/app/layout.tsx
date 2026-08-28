@@ -9,8 +9,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'ST Stream',
-  description: 'Upload, transcode, and stream adaptive HLS video',
+  title: 'TMS',
+  description: 'Training Management System',
 };
 
 export const viewport: Viewport = {

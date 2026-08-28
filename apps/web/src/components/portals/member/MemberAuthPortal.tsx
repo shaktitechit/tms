@@ -12,16 +12,16 @@ function MemberLoginForm() {
 
   return (
     <AuthCredentialsForm
-      eyebrow="Member"
-      title="Member user login"
+      eyebrow="Learner & Tutor"
+      title="Learner and Tutor Login"
       description={portal.description}
       intent={portal.loginIntent!}
-      submitLabel="Sign in as member"
+      submitLabel="Sign in"
       error={error}
       footer={
         <PortalFooterLinks
           primaryHref={PORTALS.tenant.loginPath}
-          primaryLabel="Tenant login"
+          primaryLabel="Admin login"
         />
       }
     />

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PORTALS } from '@/components/portals/shared/config';
 
 export function AuthCard({
   eyebrow,
@@ -29,7 +30,7 @@ export function AuthCard({
       {showHomeLink ? (
         <p className="mt-4 text-center text-sm text-slate-500">
           <Link href="/" className="hover:text-accent">
-            ← Back to ST Stream
+            ← Back to {PORTALS.public.label}
           </Link>
         </p>
       ) : null}

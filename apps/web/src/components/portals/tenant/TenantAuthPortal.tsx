@@ -14,16 +14,16 @@ function TenantLoginForm() {
 
   return (
     <AuthCredentialsForm
-      eyebrow="Tenant"
-      title="Tenant admin login"
+      eyebrow="Admin"
+      title="Admin Login"
       description={portal.description}
       intent={portal.loginIntent!}
-      submitLabel="Sign in as tenant"
+      submitLabel="Sign in"
       error={error}
       footer={
         <PortalFooterLinks
           primaryHref={PORTALS.member.loginPath}
-          primaryLabel="Member login"
+          primaryLabel="Learner and Tutor login"
         />
       }
     />
@@ -54,9 +54,9 @@ function TenantRegisterForm() {
         footer={
           <PortalFooterLinks
             primaryHref={portal.loginPath}
-            primaryLabel="Tenant login"
+            primaryLabel="Admin login"
             secondaryHref={PORTALS.member.loginPath}
-            secondaryLabel="Member login"
+            secondaryLabel="Learner and Tutor login"
           />
         }
       >

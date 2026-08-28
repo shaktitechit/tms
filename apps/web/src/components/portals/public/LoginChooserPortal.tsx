@@ -7,7 +7,7 @@ export function LoginChooserPortal() {
     <AuthCard
       eyebrow="Welcome back"
       title="Choose how to sign in"
-      description="Tenant admins and member users use separate portals."
+      description="Admins, learners, and tutors use separate portals."
       showHomeLink={false}
     >
       <div className="grid gap-3">

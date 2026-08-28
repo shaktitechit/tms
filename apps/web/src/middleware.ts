@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { publicUrl } from '@/lib/public-url';
 
 const COOKIE_NAME = process.env.COOKIE_NAME ?? 'video_session';
 
@@ -23,23 +24,11 @@ const TENANT_SECTIONS = new Set([
   'watch',
 ]);
 
-function publicRedirect(request: NextRequest, pathname: string): NextResponse {
-  const rawHost =
-    request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
-    request.headers.get('host')?.trim() ||
-    'localhost:3000';
-
-  const hostname = rawHost.replace(/^\[|\]$/g, '').split(':')[0] ?? 'localhost';
-  const host =
-    hostname === '0.0.0.0' || hostname === '::'
-      ? rawHost.replace(hostname, 'localhost')
-      : rawHost;
-
-  const proto =
-    request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() ||
-    (request.nextUrl.protocol === 'https:' ? 'https' : 'http');
-
-  return NextResponse.redirect(`${proto}://${host}${pathname}`);
+function publicRedirect(
+  request: NextRequest,
+  pathname: string,
+): NextResponse {
+  return NextResponse.redirect(publicUrl(request, pathname));
 }
 
 function hasSessionCookie(request: NextRequest): boolean {

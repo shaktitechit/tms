@@ -82,7 +82,7 @@ export async function processSessionRecordingJob(
 
     const remuxed = await remuxSessionSegments(liveSessionId, localSegments, tempDir, logger);
     const fileSize = (await stat(remuxed)).size;
-    if (fileSize < 16_000) {
+    if (fileSize < 4_000) {
       throw new UnrecoverableProcessingError('Remuxed session recording is too small');
     }
 

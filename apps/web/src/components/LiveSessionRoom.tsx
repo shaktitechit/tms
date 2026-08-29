@@ -44,6 +44,20 @@ function findVideoSender(pc: RTCPeerConnection): RTCRtpSender | undefined {
   )?.sender;
 }
 
+async function applySenderBitrateCap(sender: RTCRtpSender, maxBitrateBps = 750_000) {
+  try {
+    const params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) {
+      params.encodings = [{}];
+    }
+    params.encodings[0].maxBitrate = maxBitrateBps;
+    (params as any).degradationPreference = 'maintain-framerate';
+    await sender.setParameters(params);
+  } catch {
+    // best-effort parameter tuning
+  }
+}
+
 async function publishVideoTrack(
   peers: Record<string, RTCPeerConnection>,
   track: MediaStreamTrack | null,
@@ -53,8 +67,12 @@ async function publishVideoTrack(
     const sender = findVideoSender(pc);
     if (sender) {
       await sender.replaceTrack(track);
+      if (track) {
+        await applySenderBitrateCap(sender);
+      }
     } else if (track) {
-      pc.addTrack(track, stream);
+      const newSender = pc.addTrack(track, stream);
+      await applySenderBitrateCap(newSender);
     }
   }
 }
@@ -176,7 +194,10 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     const currentStream = localStreamRef.current;
     if (currentStream) {
       currentStream.getTracks().forEach((track) => {
-        pc.addTrack(track, currentStream);
+        const sender = pc.addTrack(track, currentStream);
+        if (track.kind === 'video') {
+          void applySenderBitrateCap(sender);
+        }
       });
     }
 
@@ -546,7 +567,7 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     // Camera↔screen swaps start a new WebM segment instead of a canvas mixer
     // (canvas capture lags the mic and freezes when the tab is backgrounded).
     const mimeType =
-      ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm'].find((m) =>
+      ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=h264,opus', 'video/webm'].find((m) =>
         MediaRecorder.isTypeSupported(m),
       ) ?? 'video/webm';
 
@@ -554,8 +575,8 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     try {
       recorder = new MediaRecorder(source, {
         mimeType,
-        videoBitsPerSecond: 1_200_000,
-        audioBitsPerSecond: 96_000,
+        videoBitsPerSecond: 750_000,
+        audioBitsPerSecond: 64_000,
       });
     } catch (err) {
       console.error('Failed to start session recorder', err);
@@ -704,7 +725,11 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     try {
       setMediaError(null);
       const videoStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280, max: 1280 }, height: { ideal: 720, max: 720 }, frameRate: { ideal: 24, max: 30 } },
+        video: {
+          width: { ideal: 1280, max: 1280 },
+          height: { ideal: 720, max: 720 },
+          frameRate: { ideal: 24, max: 24 },
+        },
       });
       const newVideoTrack = videoStream.getVideoTracks()[0];
       if (!newVideoTrack) return;
@@ -737,7 +762,14 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     }
 
     try {
-      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        },
+      });
       const newAudioTrack = audioStream.getAudioTracks()[0];
       if (!newAudioTrack) return;
 

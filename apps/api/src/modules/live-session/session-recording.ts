@@ -7,7 +7,7 @@ import { ffmpegBridge } from './ffmpeg.js';
 import { mongoRegistry } from '../../data/mongoRegistry.js';
 import type { AppContext } from '../../types.js';
 
-const MIN_SEGMENT_BYTES = 16_000;
+const MIN_SEGMENT_BYTES = 4_000;
 
 let ctxRef: AppContext | null = null;
 
@@ -57,8 +57,9 @@ export async function finalizeSessionRecording(liveSessionId: string) {
     const segmentKeys: string[] = [];
     for (const [index, file] of usable.entries()) {
       const key = keys.segmentKey(index);
+      const contentType = file.endsWith('.webm') ? 'video/webm' : 'video/mp4';
       await ctxRef.storage.upload(key, createReadStream(file), {
-        contentType: 'video/mp4',
+        contentType,
         contentLength: statSync(file).size,
       });
       segmentKeys.push(key);

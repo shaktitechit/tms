@@ -256,8 +256,11 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
 
     // Connect Socket.IO
     const socket = io(socketUrl, {
+      path: '/socket.io',
       withCredentials: true,
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
     });
     socketRef.current = socket;
 

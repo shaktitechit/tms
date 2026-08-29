@@ -41,7 +41,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 export function initSocketServer(httpServer: HttpServer, ctx: AppContext): Server {
   const io = new Server(httpServer, {
     cors: {
-      origin: ctx.env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+      origin: true,
       credentials: true,
     },
     transports: ['websocket', 'polling'],
@@ -62,9 +62,24 @@ export function initSocketServer(httpServer: HttpServer, ctx: AppContext): Serve
     try {
       const cookieHeader = socket.request.headers.cookie;
       const cookies = parseCookies(cookieHeader);
-      const token = cookies[ctx.env.COOKIE_NAME];
+      let token = cookies[ctx.env.COOKIE_NAME];
 
       if (!token) {
+        const authObj = socket.handshake.auth as Record<string, unknown> | undefined;
+        if (typeof authObj?.token === 'string' && authObj.token) {
+          token = authObj.token;
+        } else if (typeof socket.handshake.query?.token === 'string' && socket.handshake.query.token) {
+          token = socket.handshake.query.token;
+        } else if (socket.handshake.headers.authorization) {
+          const authHeader = socket.handshake.headers.authorization;
+          if (authHeader.startsWith('Bearer ')) {
+            token = authHeader.slice(7).trim();
+          }
+        }
+      }
+
+      if (!token) {
+        ctx.logger.warn({ ip: socket.handshake.address }, 'Socket authentication failed: Missing token');
         return next(new Error('Authentication failed: Missing token'));
       }
 
@@ -94,6 +109,7 @@ export function initSocketServer(httpServer: HttpServer, ctx: AppContext): Serve
 
       next();
     } catch (err) {
+      ctx.logger.warn({ err }, 'Socket authentication failed: Invalid token');
       next(new Error('Authentication failed: Invalid token'));
     }
   });

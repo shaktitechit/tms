@@ -98,6 +98,7 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
   const spotlightVideoRef = useRef<HTMLVideoElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
+  const iceCandidateQueueRef = useRef<Record<string, any[]>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const roomUsersRef = useRef<Record<string, PeerUser>>({});
   // Single persistent stream — tracks are added/removed in-place to avoid stream ID churn
@@ -313,6 +314,22 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
       }
     });
 
+    const processQueuedIceCandidates = async (socketId: string, pc: RTCPeerConnection) => {
+      const queue = iceCandidateQueueRef.current[socketId];
+      if (queue && queue.length > 0) {
+        while (queue.length > 0) {
+          const candidate = queue.shift();
+          if (candidate) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (candErr) {
+              console.warn('Error adding queued ICE candidate:', candErr);
+            }
+          }
+        }
+      }
+    };
+
     socket.on('signal-offer', async ({ senderSocketId, offer }: { senderSocketId: string; offer: any }) => {
       try {
         let pc = peersRef.current[senderSocketId];
@@ -342,6 +359,8 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
           await pc.setRemoteDescription(new RTCSessionDescription(offer));
         }
 
+        await processQueuedIceCandidates(senderSocketId, pc);
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit('signal-answer', { targetSocketId: senderSocketId, answer: pc.localDescription });
@@ -355,6 +374,7 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
         const pc = peersRef.current[senderSocketId];
         if (pc) {
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          await processQueuedIceCandidates(senderSocketId, pc);
         }
       } catch (err) {
         console.error('Error handling signal-answer:', err);
@@ -364,8 +384,13 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     socket.on('signal-ice-candidate', async ({ senderSocketId, candidate }: { senderSocketId: string; candidate: any }) => {
       try {
         const pc = peersRef.current[senderSocketId];
-        if (pc) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } else {
+          if (!iceCandidateQueueRef.current[senderSocketId]) {
+            iceCandidateQueueRef.current[senderSocketId] = [];
+          }
+          iceCandidateQueueRef.current[senderSocketId].push(candidate);
         }
       } catch (err) {
         console.error('Error handling signal-ice-candidate:', err);
@@ -391,6 +416,7 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
         peersRef.current[socketId].close();
         delete peersRef.current[socketId];
       }
+      delete iceCandidateQueueRef.current[socketId];
       
       // Remove from streams map
       setRemoteStreams((prev) => {
@@ -438,6 +464,7 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
       socket.disconnect();
       Object.values(peersRef.current).forEach((pc) => pc.close());
       peersRef.current = {};
+      iceCandidateQueueRef.current = {};
     };
   }, [sessionId]);
 

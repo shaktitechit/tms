@@ -226,9 +226,17 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
 
     pc.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
+        const candidatePayload = typeof event.candidate.toJSON === 'function'
+          ? event.candidate.toJSON()
+          : {
+              candidate: event.candidate.candidate,
+              sdpMid: event.candidate.sdpMid,
+              sdpMLineIndex: event.candidate.sdpMLineIndex,
+              usernameFragment: event.candidate.usernameFragment,
+            };
         socketRef.current.emit('signal-ice-candidate', {
           targetSocketId,
-          candidate: event.candidate,
+          candidate: candidatePayload,
         });
       }
     };
@@ -317,14 +325,16 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     const processQueuedIceCandidates = async (socketId: string, pc: RTCPeerConnection) => {
       const queue = iceCandidateQueueRef.current[socketId];
       if (queue && queue.length > 0) {
-        while (queue.length > 0) {
-          const candidate = queue.shift();
-          if (candidate) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            } catch (candErr) {
-              console.warn('Error adding queued ICE candidate:', candErr);
+        const candidates = [...queue];
+        iceCandidateQueueRef.current[socketId] = [];
+        for (const candidate of candidates) {
+          if (!candidate || !candidate.candidate) continue;
+          try {
+            if (pc.signalingState !== 'closed') {
+              await pc.addIceCandidate(candidate);
             }
+          } catch (candErr: any) {
+            console.debug('Benign queued ICE candidate skipped:', candErr?.message || candErr);
           }
         }
       }
@@ -382,10 +392,15 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     });
 
     socket.on('signal-ice-candidate', async ({ senderSocketId, candidate }: { senderSocketId: string; candidate: any }) => {
+      if (!candidate || !candidate.candidate) return;
       try {
         const pc = peersRef.current[senderSocketId];
-        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        if (pc && pc.remoteDescription && pc.remoteDescription.type && pc.signalingState !== 'closed') {
+          try {
+            await pc.addIceCandidate(candidate);
+          } catch (candErr: any) {
+            console.debug('Benign ICE candidate skipped:', candErr?.message || candErr);
+          }
         } else {
           if (!iceCandidateQueueRef.current[senderSocketId]) {
             iceCandidateQueueRef.current[senderSocketId] = [];
@@ -393,7 +408,7 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
           iceCandidateQueueRef.current[senderSocketId].push(candidate);
         }
       } catch (err) {
-        console.error('Error handling signal-ice-candidate:', err);
+        console.warn('Error handling signal-ice-candidate:', err);
       }
     });
 

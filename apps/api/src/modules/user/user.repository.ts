@@ -10,6 +10,13 @@ export const userRepository = {
     return mongoRegistry.models.User.findOne({ email: email.toLowerCase() }).select('+passwordHash');
   },
 
+  findByEmailOrUsername(identifier: string) {
+    const clean = identifier.trim().toLowerCase();
+    return mongoRegistry.models.User.findOne({
+      $or: [{ email: clean }, { username: clean }],
+    }).select('+passwordHash');
+  },
+
   findById(id: string) {
     return mongoRegistry.models.User.findById(id).populate(DEPARTMENT_POPULATE);
   },

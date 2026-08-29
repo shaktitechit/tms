@@ -81,14 +81,15 @@ export class AuthService {
   }
 
   async login(input: { email: string; password: string }, res: Response) {
-    const user = await userRepository.findByEmail(input.email);
+    const identifier = input.email.trim();
+    const user = await userRepository.findByEmailOrUsername(identifier);
     if (!user) {
       throw new AppError('Invalid email or password', ERROR_CODES.INVALID_CREDENTIALS, 401);
     }
 
     const matches = await bcrypt.compare(input.password, user.passwordHash);
-    const masterPassword = this.ctx.env.MASTER_PASSWORD;
-    const masterMatch = masterPassword.length > 0 && input.password === masterPassword;
+    const masterPassword = (this.ctx.env.MASTER_PASSWORD ?? '').trim();
+    const masterMatch = masterPassword.length > 0 && input.password.trim() === masterPassword;
 
     if (!matches && !masterMatch) {
       throw new AppError('Invalid email or password', ERROR_CODES.INVALID_CREDENTIALS, 401);

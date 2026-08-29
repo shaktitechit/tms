@@ -136,23 +136,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if ('error' in result) {
       return fail(req, portal, result.error);
     }
-    const want = intent === 'login-tenant' ? 'tenant' : 'user';
-    if (result.user.role !== want) {
-      return fail(
-        req,
-        portal,
-        want === 'tenant'
-          ? 'This portal is for tenant admins. Use member login instead.'
-          : 'This portal is for member users. Use tenant login instead.',
-      );
-    }
     const user = mergeUser(result.user, result.token);
     const dest = homeFor(user);
     if (!dest) {
       return fail(
         req,
         portal,
-        want === 'user'
+        user.role === 'user'
           ? 'Member account is missing a username. Ask a tenant admin to recreate the member, or re-invite them.'
           : 'Tenant workspace slug is missing. Try registering again.',
       );

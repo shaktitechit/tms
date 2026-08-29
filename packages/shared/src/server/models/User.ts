@@ -51,6 +51,12 @@ const userSchema = new mongoose.Schema(
         ref: 'Department',
       },
     ],
+    /** The user who created this account (e.g. a tutor creating a learner). */
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   { timestamps: true },
 );
@@ -58,6 +64,7 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ tenantId: 1, email: 1 });
 userSchema.index({ tenantId: 1, username: 1 }, { unique: true });
 userSchema.index({ tenantId: 1, departmentIds: 1 });
+userSchema.index({ tenantId: 1, createdBy: 1 });
 
 export type UserDocument = InferSchemaType<typeof userSchema> & {
   _id: mongoose.Types.ObjectId;

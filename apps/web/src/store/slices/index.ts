@@ -17,6 +17,8 @@ export {
   useCreateUserMutation,
   useUpdateUserMutation,
   useDeleteUserMutation,
+  useListMyLearnersQuery,
+  useCreateLearnerMutation,
 } from './user.api';
 
 export { memberModuleApi } from './member-module.api';

@@ -72,6 +72,27 @@ export const userApi = baseApi.injectEndpoints({
         { type: 'Users', id: 'LIST' },
       ],
     }),
+    listMyLearners: builder.query<{ success: boolean; users: TenantUserDto[] }, void>({
+      query: () => '/users/my-learners',
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.users.map(({ id }) => ({ type: 'User' as const, id })),
+              { type: 'Users', id: 'MY_LEARNERS' },
+            ]
+          : [{ type: 'Users', id: 'MY_LEARNERS' }],
+    }),
+    createLearner: builder.mutation<
+      { success: boolean; user: TenantUserDto },
+      { email: string; password: string; name: string }
+    >({
+      query: (body) => ({
+        url: '/users/my-learners',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: [{ type: 'Users', id: 'MY_LEARNERS' }],
+    }),
   }),
 });
 
@@ -82,4 +103,6 @@ export const {
   useCreateUserMutation,
   useUpdateUserMutation,
   useDeleteUserMutation,
+  useListMyLearnersQuery,
+  useCreateLearnerMutation,
 } = userApi;

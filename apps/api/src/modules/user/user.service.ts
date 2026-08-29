@@ -30,6 +30,11 @@ export class UserService {
     return this.withModules(actor.tenantId, users);
   }
 
+  async listByTutor(actor: AuthActor) {
+    const users = await userRepository.findByTutor(actor.tenantId, actor.id);
+    return this.withModules(actor.tenantId, users);
+  }
+
   async getById(actor: AuthActor, id: string) {
     const user = await this.requireInTenant(actor.tenantId, id);
     const [serialized] = await this.withModules(actor.tenantId, [user]);
@@ -81,6 +86,41 @@ export class UserService {
       role,
       access: role === UserRole.USER ? (input.access ?? MemberAccess.LEARNER) : undefined,
       departmentIds,
+    });
+
+    const [serialized] = await this.withModules(actor.tenantId, [user]);
+    return serialized;
+  }
+
+  /** Tutors can create learner accounts that are linked back to them. */
+  async createLearner(
+    actor: AuthActor,
+    input: {
+      email: string;
+      password: string;
+      name: string;
+    },
+  ) {
+    const isTutor = actor.role === UserRole.USER;
+    const isTenantAdmin = actor.role === UserRole.TENANT;
+    if (!isTutor && !isTenantAdmin) {
+      throw forbidden();
+    }
+
+    const existing = await userRepository.findByEmail(input.email);
+    if (existing) {
+      throw new AppError('Email is already registered', ERROR_CODES.EMAIL_IN_USE, 409);
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
+    const user = await userRepository.create({
+      email: input.email.toLowerCase(),
+      name: input.name,
+      passwordHash,
+      tenantId: actor.tenantId,
+      role: UserRole.USER,
+      access: MemberAccess.LEARNER,
+      createdBy: actor.id,
     });
 
     const [serialized] = await this.withModules(actor.tenantId, [user]);

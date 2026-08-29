@@ -17,6 +17,30 @@ export class UserController {
     }
   };
 
+  listMyLearners = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw unauthorized();
+      }
+      const users = await this.users.listByTutor(req.user);
+      res.json({ success: true, users });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createLearner = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw unauthorized();
+      }
+      const user = await this.users.createLearner(req.user, req.body);
+      res.status(201).json({ success: true, user });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   get = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {

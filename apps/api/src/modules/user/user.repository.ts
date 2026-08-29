@@ -20,6 +20,12 @@ export const userRepository = {
       .sort({ createdAt: -1 });
   },
 
+  findByTutor(tenantId: string, tutorId: string) {
+    return mongoRegistry.models.User.find({ tenantId, createdBy: tutorId, access: MemberAccess.LEARNER })
+      .populate(DEPARTMENT_POPULATE)
+      .sort({ createdAt: -1 });
+  },
+
   findByTenantUsername(tenantId: string, username: string) {
     return mongoRegistry.models.User.findOne({
       tenantId,
@@ -62,6 +68,7 @@ export const userRepository = {
     access?: MemberAccess;
     username?: string;
     departmentIds?: mongoose.Types.ObjectId[];
+    createdBy?: string;
   }) {
     const username =
       data.username ?? (await userRepository.allocateUsername(data.tenantId, data.name));
@@ -74,6 +81,7 @@ export const userRepository = {
       role: data.role ?? UserRole.USER,
       ...(data.access ? { access: data.access } : {}),
       departmentIds: data.departmentIds ?? [],
+      ...(data.createdBy ? { createdBy: data.createdBy } : {}),
     });
     return user.populate(DEPARTMENT_POPULATE);
   },

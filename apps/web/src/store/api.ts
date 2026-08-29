@@ -18,6 +18,8 @@ export {
   useCreateUserMutation,
   useUpdateUserMutation,
   useDeleteUserMutation,
+  useListMyLearnersQuery,
+  useCreateLearnerMutation,
   useListMemberModulesQuery,
   useGetMemberModuleQuery,
   useCreateMemberModuleMutation,

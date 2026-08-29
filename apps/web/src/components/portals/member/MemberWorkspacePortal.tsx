@@ -10,7 +10,7 @@ import { useGetUserQuery } from '@/store/api';
 
 function MemberWorkspaceContent({ children }: { children: React.ReactNode }) {
   const params = useParams<{ tenantSlug: string; userName: string }>();
-  const { user } = useMemberAccess();
+  const { user, isTutor } = useMemberAccess();
   const { data: memberData } = useGetUserQuery(user?.id ?? '', { skip: !user?.id });
 
   if (user && user.username !== params.userName) {
@@ -36,6 +36,7 @@ function MemberWorkspaceContent({ children }: { children: React.ReactNode }) {
     tenantSlug: params.tenantSlug,
     userName: params.userName,
     departments: assignedDepartments,
+    isTutor,
   });
 
   return <WorkspaceShell links={links}>{children}</WorkspaceShell>;

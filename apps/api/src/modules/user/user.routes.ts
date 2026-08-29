@@ -20,6 +20,9 @@ export function createUserRouter(ctx: AppContext): Router {
     validateBody(createUserSchema),
     controller.create,
   );
+  /** Tutor-scoped: list/create learners that belong to the caller. */
+  router.get('/my-learners', requireAuth(ctx), controller.listMyLearners);
+  router.post('/my-learners', requireAuth(ctx), validateBody(createUserSchema), controller.createLearner);
   router.get('/:id/progress', requireAuth(ctx), controller.getProgress);
   router.get('/:id', requireAuth(ctx), controller.get);
   router.patch('/:id', requireAuth(ctx), validateBody(updateUserSchema), controller.update);

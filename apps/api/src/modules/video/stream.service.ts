@@ -97,4 +97,12 @@ export class StreamService {
     }
     await this.pipeObject(res, video.thumbnailStorageKey, 'thumbnail.jpg');
   }
+
+  async pipeOriginal(req: Request, res: Response, videoId: string): Promise<void> {
+    const video = await this.authorize(videoId, req.user);
+    if (!video.originalStorageKey || video.originalStorageKey === 'pending') {
+      throw notFound('Original video not found');
+    }
+    await this.pipeObject(res, video.originalStorageKey, video.originalFilename || 'video.mp4');
+  }
 }

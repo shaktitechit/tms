@@ -243,4 +243,12 @@ export class VideoController {
       next(error);
     }
   };
+
+  original = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await this.streams.pipeOriginal(req, res, req.params.id as string);
+    } catch (error) {
+      next(error);
+    }
+  };
 }

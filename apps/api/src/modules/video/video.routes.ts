@@ -21,6 +21,7 @@ export function createVideoRouter(ctx: AppContext): Router {
   router.get('/', optionalAuth(ctx), controller.listPublic);
   router.get('/:id/status', optionalAuth(ctx), controller.statusPublic);
   router.get('/:id/stream', optionalAuth(ctx), controller.stream);
+  router.get('/:id/original', optionalAuth(ctx), controller.original);
   router.get('/:id/thumbnail', optionalAuth(ctx), controller.thumbnail);
   router.get('/:id/hls/*', optionalAuth(ctx), controller.hls);
   router.get('/:id', optionalAuth(ctx), controller.getPublic);

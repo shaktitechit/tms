@@ -480,8 +480,20 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
       void applyHostMicCommandRef.current(!!data?.muted);
     });
 
-    socket.on('session-status', () => {
+    socket.on('session-status', (data?: { status?: string }) => {
       void refetchSessionRef.current();
+      if (data?.status === 'ended') {
+        stopLocalStream();
+        Object.values(peersRef.current).forEach((pc) => {
+          try {
+            pc.close();
+          } catch {
+            // ignore
+          }
+        });
+        peersRef.current = {};
+        setRemoteStreams({});
+      }
     });
 
     socket.on('error-msg', (msg: string) => {
@@ -560,7 +572,8 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
   const startRecording = (opts?: { resumeAfterRotate?: boolean }) => {
     const socket = socketRef.current;
     const source = persistentStreamRef.current;
-    if (!socket || !streamHasLiveVideo(source)) return;
+    const hasTracks = source.getTracks().some((t) => t.readyState === 'live');
+    if (!socket || !hasTracks) return;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') return;
 
     // Record the live MediaStream directly so audio and video share one clock.
@@ -692,7 +705,8 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
     if (!session || session.status !== 'live' || !currentUser?.id) return;
     const hostId = String(session.host?.id || session.host);
     const canRecord = hostId === currentUser.id && canHostLiveSession(currentUser);
-    if (canRecord && streamHasLiveVideo(localStream)) {
+    const hasAnyTrack = persistentStreamRef.current.getTracks().some((track) => track.readyState === 'live');
+    if (canRecord && hasAnyTrack) {
       const liveVideo = persistentStreamRef.current
         .getVideoTracks()
         .find((track) => track.readyState === 'live');
@@ -707,11 +721,21 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
         startRecording();
       }
     }
-  }, [sessionRes, localStream, isCameraOn, isScreenSharing, currentUser]);
+  }, [sessionRes, localStream, isCameraOn, isScreenSharing, isMicMuted, currentUser]);
 
   useEffect(() => {
     if (sessionRes?.data?.status === 'ended') {
       void stopRecording(false);
+      stopLocalStream();
+      Object.values(peersRef.current).forEach((pc) => {
+        try {
+          pc.close();
+        } catch {
+          // ignore
+        }
+      });
+      peersRef.current = {};
+      setRemoteStreams({});
     }
   }, [sessionRes?.data?.status]);
 
@@ -943,9 +967,25 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
   const stopLocalStream = () => {
     persistentStreamRef.current.getTracks().forEach((track) => {
       track.onended = null;
-      track.stop();
+      try {
+        track.stop();
+      } catch {
+        // ignore
+      }
       persistentStreamRef.current.removeTrack(track);
     });
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // ignore
+        }
+      });
+      localStreamRef.current = null;
+    }
+
     setLocalStream(null);
     setIsCameraOn(false);
     setIsScreenSharing(false);
@@ -954,10 +994,24 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
 
     // Remove all track senders from peer connections
     for (const pc of Object.values(peersRef.current)) {
-      pc.getSenders().forEach((sender) => {
-        if (sender.track) sender.track.stop();
-        pc.removeTrack(sender);
-      });
+      try {
+        pc.getSenders().forEach((sender) => {
+          if (sender.track) {
+            try {
+              sender.track.stop();
+            } catch {
+              // ignore
+            }
+          }
+          try {
+            pc.removeTrack(sender);
+          } catch {
+            // ignore
+          }
+        });
+      } catch {
+        // ignore
+      }
     }
   };
 

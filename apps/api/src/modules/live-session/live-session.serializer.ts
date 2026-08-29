@@ -31,6 +31,7 @@ type PopulatedVideo = {
   status?: string;
   hlsMasterPlaylistKey?: string;
   thumbnailStorageKey?: string;
+  originalStorageKey?: string;
 };
 
 function recordingFields(session: LiveSessionDocument) {
@@ -41,16 +42,24 @@ function recordingFields(session: LiveSessionDocument) {
   const storedStatus = (session as LiveSessionDocument & { recordingStatus?: string }).recordingStatus || 'none';
 
   let recordingStatus = storedStatus;
-  if (video?.status === 'READY') recordingStatus = 'ready';
-  else if (video?.status === 'FAILED') recordingStatus = 'failed';
-  else if (video && ['QUEUED', 'PROCESSING', 'UPLOADED', 'UPLOADING'].includes(video.status || '')) {
-    recordingStatus = 'processing';
+  let playbackUrl: string | null = null;
+
+  if (video?.status === 'READY' && video?.hlsMasterPlaylistKey) {
+    recordingStatus = 'ready';
+    playbackUrl = `/api/videos/${videoId}/hls/master.m3u8`;
+  } else if (videoId && (video?.originalStorageKey || video?.status)) {
+    recordingStatus = 'ready';
+    playbackUrl = `/api/videos/${videoId}/original`;
+  } else if (video?.status === 'FAILED') {
+    recordingStatus = 'failed';
+  } else if (storedStatus === 'processing' || storedStatus === 'recording') {
+    recordingStatus = storedStatus;
   }
 
   return {
     recordingStatus,
     recordingVideoId: videoId,
-    playbackUrl: video?.status === 'READY' ? `/api/videos/${videoId}/hls/master.m3u8` : null,
+    playbackUrl,
     thumbnailUrl: video?.thumbnailStorageKey ? `/api/videos/${videoId}/thumbnail` : null,
   };
 }

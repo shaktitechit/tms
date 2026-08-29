@@ -14,7 +14,7 @@ export const liveSessionRepository = {
   find(query: FilterQuery<LiveSessionDocument>) {
     return mongoRegistry.models.LiveSession.find(query)
       .populate('hostId', HOST_FIELDS)
-      .populate('recordingVideoId', 'status hlsMasterPlaylistKey thumbnailStorageKey')
+      .populate('recordingVideoId', 'status hlsMasterPlaylistKey thumbnailStorageKey originalStorageKey')
       .sort({ scheduledStartTime: 1 });
   },
 
@@ -23,7 +23,7 @@ export const liveSessionRepository = {
     return mongoRegistry.models.LiveSession.findById(id)
       .populate('hostId', HOST_FIELDS)
       .populate('invitedUserIds', 'name username email')
-      .populate('recordingVideoId', 'status hlsMasterPlaylistKey thumbnailStorageKey');
+      .populate('recordingVideoId', 'status hlsMasterPlaylistKey thumbnailStorageKey originalStorageKey');
   },
 
   updateById(id: string, tenantId: string, patch: Partial<LiveSessionDocument>) {
@@ -35,7 +35,7 @@ export const liveSessionRepository = {
     )
       .populate('hostId', HOST_FIELDS)
       .populate('invitedUserIds', 'name username email')
-      .populate('recordingVideoId', 'status hlsMasterPlaylistKey thumbnailStorageKey');
+      .populate('recordingVideoId', 'status hlsMasterPlaylistKey thumbnailStorageKey originalStorageKey');
   },
 
   deleteById(id: string, tenantId: string) {

@@ -17,7 +17,12 @@ vi.mock('bullmq', () => {
   return { Queue };
 });
 
-import { createVideoProcessingQueue, enqueueVideoProcessing } from './server/queue.js';
+import {
+  createSessionRecordingQueue,
+  createVideoProcessingQueue,
+  enqueueSessionRecording,
+  enqueueVideoProcessing,
+} from './server/queue.js';
 
 describe('video processing queue', () => {
   it('enqueues jobs with a deterministic job id and retry backoff', async () => {
@@ -35,6 +40,32 @@ describe('video processing queue', () => {
         jobId: '66c9e8abc1234567890abcde',
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
+      }),
+    );
+  });
+
+  it('enqueues session recording jobs with the session id', async () => {
+    const queue = createSessionRecordingQueue({
+      REDIS_HOST: 'localhost',
+      REDIS_PORT: 6379,
+      REDIS_PASSWORD: '',
+    });
+    const data = {
+      liveSessionId: '66c9e8abc1234567890abcde',
+      tenantId: '66c9e8abc1234567890abcdf',
+      hostId: '66c9e8abc1234567890abce0',
+      title: 'Weekly standup',
+      description: '',
+      segmentKeys: ['live-sessions/66c9e8abc1234567890abcde/segments/part000.mp4'],
+    };
+    const id = await enqueueSessionRecording(queue, data);
+    expect(id).toBe(data.liveSessionId);
+    expect(queue.add).toHaveBeenCalledWith(
+      'finalize-session-recording',
+      data,
+      expect.objectContaining({
+        jobId: data.liveSessionId,
+        attempts: 3,
       }),
     );
   });

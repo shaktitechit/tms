@@ -57,6 +57,9 @@ export const baseApi = createApi({
     'Video',
     'Discussions',
     'Discussion',
+    'LiveSessions',
+    'LiveSession',
+    'LiveChatHistory',
   ],
   endpoints: () => ({}),
 });

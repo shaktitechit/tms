@@ -118,12 +118,9 @@ export function middleware(request: NextRequest) {
       const toUser = pathname.startsWith('/dashboard/user');
       return publicRedirect(request, toUser ? '/login/user' : '/login/tenant');
     }
-    const { home, role } = decodeSession(request);
+    const { home } = decodeSession(request);
     const workspaceHome = home ?? '/';
     if (pathname === '/upload') {
-      if (role === 'user' && home) {
-        return publicRedirect(request, `${home}/videos`);
-      }
       return publicRedirect(request, `${workspaceHome}/upload`);
     }
     if (pathname === '/videos' || pathname.startsWith('/videos/')) {
@@ -134,17 +131,6 @@ export function middleware(request: NextRequest) {
   }
 
   if (parts.length >= 1 && !RESERVED_ROOT.has(parts[0]!)) {
-    if (authed) {
-      const { home, role } = decodeSession(request);
-      if (
-        role === 'user' &&
-        parts.length >= 3 &&
-        parts[2] === 'upload' &&
-        !TENANT_SECTIONS.has(parts[1]!)
-      ) {
-        return publicRedirect(request, home ? `${home}/videos` : '/');
-      }
-    }
     if (!authed) {
       const looksLikeUser =
         parts.length >= 2 && !TENANT_SECTIONS.has(parts[1]!);

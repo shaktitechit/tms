@@ -12,6 +12,7 @@ export interface AuthPayload {
   tenantId: string;
   tenantSlug: string;
   username: string;
+  access?: string | null;
 }
 
 declare global {
@@ -39,6 +40,7 @@ export function signAuthToken(
     tenantId: string;
     tenantSlug: string;
     username: string;
+    access?: string | null;
   },
 ): string {
   return jwt.sign(
@@ -48,6 +50,7 @@ export function signAuthToken(
       tenantId: input.tenantId,
       tenantSlug: input.tenantSlug,
       username: input.username,
+      access: input.access ?? null,
     } satisfies AuthPayload,
     ctx.env.JWT_SECRET,
     {
@@ -106,7 +109,9 @@ export function optionalAuth(ctx: AppContext) {
           email: user.email,
           name: user.name,
           access:
-            user.role === UserRole.USER ? (user.access ?? MemberAccess.LEARNER) : null,
+            user.role === 'user'
+              ? (user.access ?? payload.access ?? MemberAccess.LEARNER)
+              : null,
         };
       }
       next();

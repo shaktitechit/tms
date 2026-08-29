@@ -26,6 +26,9 @@ RUN npm run build -w @video/shared && npm run build -w @video/api \
 
 FROM node:20-bookworm-slim AS api
 WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 COPY --from=api-build /app/package.json /app/package.json
 COPY --from=api-build /app/package-lock.json /app/package-lock.json
@@ -71,7 +74,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG API_INTERNAL_URL=http://api:4000
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
 # Bump to invalidate stale BuildKit cache when auth/login changes.
-ARG WEB_BUILD_ID=auth-member-username-v5
+ARG WEB_BUILD_ID=live-session-host-mic-v1
 ENV WEB_BUILD_ID=$WEB_BUILD_ID
 RUN mkdir -p apps/web/public \
   && npm run build -w @video/shared \

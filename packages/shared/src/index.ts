@@ -12,12 +12,14 @@ export {
   VIDEO_QUALITIES,
   AUDIO_PROCESSING_QUEUE,
   AUDIO_QUALITIES,
+  SESSION_RECORDING_QUEUE,
 } from './types.js';
 export type {
   QualityLadderEntry,
   AudioQualityLadderEntry,
   VideoProcessingJobData,
   AudioProcessingJobData,
+  SessionRecordingJobData,
   ApiErrorBody,
   VideoStatusResponse,
   AudioStatusResponse,
@@ -46,6 +48,8 @@ export {
   resolveAudioHlsObjectKey,
 } from './audio-storage-keys.js';
 export type { AudioStorageKeys } from './audio-storage-keys.js';
+export { buildLiveSessionRecordingKeys } from './live-session-storage-keys.js';
+export type { LiveSessionRecordingKeys } from './live-session-storage-keys.js';
 export { validateVideoFile } from './validation.js';
 export type { FileValidationInput, FileValidationOptions, FileValidationResult } from './validation.js';
 export { AppError, UnrecoverableProcessingError, toErrorBody } from './errors.js';

@@ -3,6 +3,9 @@ import { MemberAccess } from '@video/shared';
 
 export type AppRole = 'tenant' | 'user';
 
+/** Access layer for `UserRole.USER`. Independent of tenant vs member role. */
+export type MemberLayer = 'learner' | 'tutor';
+
 export const TENANT_ROUTE_SEGMENTS = [
   'videos',
   'upload',
@@ -12,15 +15,48 @@ export const TENANT_ROUTE_SEGMENTS = [
 ] as const;
 
 export function isTenantAdmin(user?: AuthUser | null): boolean {
-  return user?.role === 'tenant';
+  return memberAccessValue(user?.role) === 'tenant';
 }
 
 export function isMemberUser(user?: AuthUser | null): boolean {
-  return user?.role === 'user';
+  return memberAccessValue(user?.role) === 'user';
+}
+
+export function memberAccessValue(access?: string | null): string {
+  return String(access ?? '').trim().toLowerCase();
+}
+
+/** Tutor vs learner for a member user. `null` when the account is not a member. */
+export function memberLayer(user?: AuthUser | null): MemberLayer | null {
+  if (!isMemberUser(user)) {
+    return null;
+  }
+  return memberAccessValue(user?.access) === 'tutor' ? 'tutor' : 'learner';
 }
 
 export function isTutor(user?: AuthUser | null): boolean {
-  return isMemberUser(user) && user?.access === MemberAccess.TUTOR;
+  return memberLayer(user) === 'tutor';
+}
+
+export function isLearner(user?: AuthUser | null): boolean {
+  return memberLayer(user) === 'learner';
+}
+
+export function withMemberAccess(
+  user: AuthUser | null | undefined,
+  access?: string | null,
+): AuthUser | null {
+  if (!user) {
+    return null;
+  }
+  if (memberAccessValue(user.access) === 'tutor' || memberAccessValue(access) === 'tutor') {
+    return user.access === MemberAccess.TUTOR ? user : { ...user, access: MemberAccess.TUTOR };
+  }
+  const next = (access ?? user.access) as AuthUser['access'];
+  if (next === user.access) {
+    return user;
+  }
+  return { ...user, access: next };
 }
 
 /** Tenant admins and tutors can create/edit lesson curriculum. */
@@ -29,7 +65,12 @@ export function canManageCurriculum(user?: AuthUser | null): boolean {
 }
 
 export function canUpload(user?: AuthUser | null): boolean {
-  return isTenantAdmin(user);
+  return isTenantAdmin(user) || isTutor(user);
+}
+
+/** Tenant admins and tutors can schedule and host live sessions. */
+export function canHostLiveSession(user?: AuthUser | null): boolean {
+  return isTenantAdmin(user) || isTutor(user);
 }
 
 /** Stable post-login entry used by the login forms. */

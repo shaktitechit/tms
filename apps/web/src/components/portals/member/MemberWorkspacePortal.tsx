@@ -2,17 +2,15 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
+import { MemberAccessProvider, useMemberAccess } from '@/components/portals/member/MemberAccess';
+import { memberWorkspaceNav } from '@/components/portals/member/memberNav';
 import { PortalGate } from '@/components/portals/shared/PortalGate';
-import type { WorkspaceNavLink } from '@/components/portals/shared/types';
 import { WorkspaceShell } from '@/components/portals/shared/WorkspaceShell';
-import { departmentDetailPath } from '@/lib/roles';
 import { useGetUserQuery } from '@/store/api';
 
 function MemberWorkspaceContent({ children }: { children: React.ReactNode }) {
   const params = useParams<{ tenantSlug: string; userName: string }>();
-  const { user } = useAuth();
-  const base = `/${params.tenantSlug}/${params.userName}`;
+  const { user } = useMemberAccess();
   const { data: memberData } = useGetUserQuery(user?.id ?? '', { skip: !user?.id });
 
   if (user && user.username !== params.userName) {
@@ -34,15 +32,11 @@ function MemberWorkspaceContent({ children }: { children: React.ReactNode }) {
       Boolean(department.slug),
   );
 
-  const links: WorkspaceNavLink[] = [
-    { href: base, label: 'Dashboard', icon: 'dashboard' },
-    ...assignedDepartments.map((department) => ({
-      href: departmentDetailPath(params.tenantSlug, department.slug, params.userName),
-      label: department.name,
-      icon: 'departments' as const,
-    })),
-    { href: `${base}/settings`, label: 'Settings', icon: 'settings' },
-  ];
+  const links = memberWorkspaceNav({
+    tenantSlug: params.tenantSlug,
+    userName: params.userName,
+    departments: assignedDepartments,
+  });
 
   return <WorkspaceShell links={links}>{children}</WorkspaceShell>;
 }
@@ -50,7 +44,9 @@ function MemberWorkspaceContent({ children }: { children: React.ReactNode }) {
 export function MemberWorkspacePortal({ children }: { children: React.ReactNode }) {
   return (
     <PortalGate role="user">
-      <MemberWorkspaceContent>{children}</MemberWorkspaceContent>
+      <MemberAccessProvider>
+        <MemberWorkspaceContent>{children}</MemberWorkspaceContent>
+      </MemberAccessProvider>
     </PortalGate>
   );
 }

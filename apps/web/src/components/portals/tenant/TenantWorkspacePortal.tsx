@@ -12,6 +12,7 @@ export function TenantWorkspacePortal({ children }: { children: React.ReactNode 
   const links: WorkspaceNavLink[] = [
     { href: `/${slug}`, label: 'Dashboard', icon: 'dashboard' },
     { href: `/${slug}/videos`, label: 'Library', icon: 'library' },
+    { href: `/${slug}/live-sessions`, label: 'Live Sessions', icon: 'modules' },
     { href: `/${slug}/upload`, label: 'Upload', icon: 'upload' },
     { href: `/${slug}/departments`, label: 'Departments', icon: 'departments' },
     { href: `/${slug}/users`, label: 'Members', icon: 'members' },

@@ -113,6 +113,17 @@ export interface AudioStatusResponse {
 
 export const AUDIO_PROCESSING_QUEUE = 'audio-processing';
 
+export interface SessionRecordingJobData {
+  liveSessionId: string;
+  tenantId: string;
+  hostId: string;
+  title: string;
+  description: string;
+  segmentKeys: string[];
+}
+
+export const SESSION_RECORDING_QUEUE = 'session-recording';
+
 export const AUDIO_QUALITIES = [
   AudioQuality.K96,
   AudioQuality.K128,

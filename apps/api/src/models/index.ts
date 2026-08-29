@@ -17,3 +17,5 @@ export { Pdf, type PdfDocument } from './pdf.model.js';
 export { PdfSeen, type PdfSeenDocument } from './pdf-seen.model.js';
 export { Discussion, type DiscussionDocument } from './discussion.model.js';
 export { VideoSeen, type VideoSeenDocument } from './video-seen.model.js';
+export { LiveSession, type LiveSessionDocument } from './live-session.model.js';
+export { LiveChatMessage, type LiveChatMessageDocument } from './live-chat-message.model.js';

@@ -99,6 +99,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      rtmp:
+        condition: service_started
     ports:
       - "34000:4000"
 
@@ -161,4 +163,15 @@ services:
     depends_on:
       - api
       - web
+      - rtmp
+
+  rtmp:
+    image: alfg/nginx-rtmp:latest
+    restart: unless-stopped
+    volumes:
+      - ./docker/nginx-rtmp.conf:/etc/nginx/nginx.conf.template:ro
+    ports:
+      - "1935:1935"
+      - "8000:80"
+
 

@@ -35,7 +35,7 @@ export function PortalGate({
     );
   }
 
-  if (user.role !== role) {
+  if (String(user.role ?? '').toLowerCase() !== role) {
     return (
       <p className="text-slate-500">
         This area is for {portal.label.toLowerCase()} accounts.{' '}

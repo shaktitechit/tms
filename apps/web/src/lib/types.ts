@@ -396,3 +396,37 @@ export interface CurriculumDto {
 export interface MemberProgressDto extends CurriculumDto {
   user: TenantUserDto;
 }
+
+export interface LiveSessionUser {
+  id: string;
+  name: string | null;
+  username: string | null;
+  email: string | null;
+}
+
+export interface LiveSessionDto {
+  id: string;
+  title: string;
+  description: string | null;
+  tenantId: string;
+  host: LiveSessionUser;
+  status: 'upcoming' | 'live' | 'ended';
+  scheduledStartTime: string;
+  invitedUsers: LiveSessionUser[];
+  createdAt: string;
+  updatedAt: string;
+  recordingStatus: 'none' | 'recording' | 'processing' | 'ready' | 'failed';
+  recordingVideoId: string | null;
+  playbackUrl: string | null;
+  thumbnailUrl: string | null;
+}
+
+export interface LiveChatMessageDto {
+  id: string;
+  liveSessionId: string;
+  tenantId: string;
+  sender: LiveSessionUser;
+  message: string;
+  createdAt: string;
+}
+

@@ -28,3 +28,8 @@ export { TenantWorkspacePortal } from './tenant/TenantWorkspacePortal';
 export { MemberLoginPortal } from './member/MemberAuthPortal';
 export { MemberUploadPortal } from './member/MemberUploadPortal';
 export { MemberWorkspacePortal } from './member/MemberWorkspacePortal';
+export {
+  MemberAccessProvider,
+  MemberAccessGate,
+  useMemberAccess,
+} from './member/MemberAccess';

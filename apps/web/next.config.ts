@@ -43,6 +43,19 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: repoRoot,
   transpilePackages: ['@video/shared'],
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(self), microphone=(self), display-capture=(self)',
+          },
+        ],
+      },
+    ];
+  },
   // Always proxy via apps/web/src/app/api/[...path]/route.ts so Set-Cookie is
   // forwarded with response.cookies.set(). External rewrites drop cookies.
 };

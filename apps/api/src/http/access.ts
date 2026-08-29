@@ -1,4 +1,3 @@
-import { MemberAccess, UserRole } from '@video/shared';
 import { forbidden } from './errors.js';
 
 export type CurriculumActor = {
@@ -7,11 +6,14 @@ export type CurriculumActor = {
 };
 
 export function isTutorActor(actor: CurriculumActor): boolean {
-  return actor.role === UserRole.USER && actor.access === MemberAccess.TUTOR;
+  return (
+    String(actor.role ?? '').toLowerCase() === 'user' &&
+    String(actor.access ?? '').toLowerCase() === 'tutor'
+  );
 }
 
 export function canManageCurriculum(actor: CurriculumActor): boolean {
-  return actor.role === UserRole.TENANT || isTutorActor(actor);
+  return String(actor.role ?? '').toLowerCase() === 'tenant' || isTutorActor(actor);
 }
 
 export function assertCanManageCurriculum(actor: CurriculumActor): void {

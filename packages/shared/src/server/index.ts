@@ -41,6 +41,10 @@ export { Discussion } from './models/Discussion.js';
 export type { DiscussionDocument } from './models/Discussion.js';
 export { VideoSeen } from './models/VideoSeen.js';
 export type { VideoSeenDocument } from './models/VideoSeen.js';
+export { LiveSession } from './models/LiveSession.js';
+export type { LiveSessionDocument } from './models/LiveSession.js';
+export { LiveChatMessage } from './models/LiveChatMessage.js';
+export type { LiveChatMessageDocument } from './models/LiveChatMessage.js';
 export { S3CompatibleStorage } from './storage.js';
 export type { StorageService, ObjectMetadata, StorageDownloadOptions } from './storage.js';
 export {
@@ -52,4 +56,7 @@ export {
   createAudioProcessingQueue,
   enqueueAudioProcessing,
   removeAudioProcessingJob,
+  createSessionRecordingQueue,
+  enqueueSessionRecording,
+  removeSessionRecordingJob,
 } from './queue.js';

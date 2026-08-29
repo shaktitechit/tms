@@ -19,6 +19,8 @@ import {
   User,
   Video,
   VideoSeen,
+  LiveSession,
+  LiveChatMessage,
 } from '../models/index.js';
 
 /**
@@ -45,6 +47,8 @@ export const mongoRegistry = {
     PdfSeen,
     Discussion,
     VideoSeen,
+    LiveSession,
+    LiveChatMessage,
   } as const,
 
   async connect(uri: string, logger: Logger) {

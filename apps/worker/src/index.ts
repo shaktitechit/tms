@@ -1,19 +1,23 @@
 import { Worker } from 'bullmq';
 import {
   AUDIO_PROCESSING_QUEUE,
+  SESSION_RECORDING_QUEUE,
   VIDEO_PROCESSING_QUEUE,
   type AudioProcessingJobData,
+  type SessionRecordingJobData,
   type VideoProcessingJobData,
 } from '@video/shared';
 import {
   connectMongo,
   createLogger,
   createRedisConnection,
+  createVideoProcessingQueue,
   loadEnv,
   S3CompatibleStorage,
 } from '@video/shared/server';
 import { createAudioProcessor } from './audio-processor.js';
 import { createVideoProcessor } from './processor.js';
+import { createSessionRecordingProcessor } from './session-recording-processor.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -24,6 +28,7 @@ async function main(): Promise<void> {
   await storage.ensureBucket();
 
   const connection = createRedisConnection(env);
+  const videoQueue = createVideoProcessingQueue(env);
   const videoProcessor = createVideoProcessor({
     storage,
     logger,
@@ -37,6 +42,12 @@ async function main(): Promise<void> {
     logger,
     tempRoot: env.WORKER_TEMP_DIR,
     segmentDuration: env.HLS_SEGMENT_DURATION,
+  });
+  const sessionRecordingProcessor = createSessionRecordingProcessor({
+    storage,
+    logger,
+    tempRoot: env.WORKER_TEMP_DIR,
+    videoQueue,
   });
 
   const videoWorker = new Worker<VideoProcessingJobData>(VIDEO_PROCESSING_QUEUE, videoProcessor, {
@@ -52,6 +63,17 @@ async function main(): Promise<void> {
     lockDuration: 5 * 60 * 1000,
     stalledInterval: 60 * 1000,
   });
+
+  const sessionRecordingWorker = new Worker<SessionRecordingJobData>(
+    SESSION_RECORDING_QUEUE,
+    sessionRecordingProcessor,
+    {
+      connection: createRedisConnection(env),
+      concurrency: Math.max(1, Math.floor(env.WORKER_CONCURRENCY)),
+      lockDuration: 10 * 60 * 1000,
+      stalledInterval: 60 * 1000,
+    },
+  );
 
   videoWorker.on('completed', (job) => {
     logger.info({ jobId: job.id, videoId: job.data.videoId }, 'Video job completed');
@@ -79,18 +101,37 @@ async function main(): Promise<void> {
     logger.error({ err: error }, 'Audio worker error');
   });
 
+  sessionRecordingWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id, liveSessionId: job.data.liveSessionId }, 'Session recording job completed');
+  });
+  sessionRecordingWorker.on('failed', (job, error) => {
+    logger.error(
+      { jobId: job?.id, liveSessionId: job?.data.liveSessionId, err: error },
+      'Session recording job failed',
+    );
+  });
+  sessionRecordingWorker.on('error', (error) => {
+    logger.error({ err: error }, 'Session recording worker error');
+  });
+
   logger.info(
     {
       concurrency: env.WORKER_CONCURRENCY,
       videoQueue: VIDEO_PROCESSING_QUEUE,
       audioQueue: AUDIO_PROCESSING_QUEUE,
+      sessionRecordingQueue: SESSION_RECORDING_QUEUE,
     },
-    'Video and audio workers started',
+    'Video, audio, and session-recording workers started',
   );
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutting down worker');
-    await Promise.all([videoWorker.close(), audioWorker.close()]);
+    await Promise.all([
+      videoWorker.close(),
+      audioWorker.close(),
+      sessionRecordingWorker.close(),
+      videoQueue.close(),
+    ]);
     await connection.quit();
     process.exit(0);
   };

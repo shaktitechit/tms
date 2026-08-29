@@ -31,9 +31,7 @@ function toAuthUser(input: {
     username: input.user.username,
     role: input.user.role,
     access:
-      input.user.role === UserRole.USER
-        ? (input.user.access ?? MemberAccess.LEARNER)
-        : null,
+      input.user.role === 'user' ? (input.user.access ?? MemberAccess.LEARNER) : null,
     tenantId: String(input.user.tenantId),
     tenantSlug: input.tenantSlug,
   };
@@ -75,6 +73,7 @@ export class AuthService {
       tenantId: String(user.tenantId),
       tenantSlug: tenant.slug,
       username: user.username,
+      access: null,
     });
     setAuthCookie(this.ctx, res, token);
 
@@ -110,6 +109,7 @@ export class AuthService {
       tenantId: String(user.tenantId),
       tenantSlug: tenant.slug,
       username: user.username,
+      access: user.role === 'user' ? (user.access ?? MemberAccess.LEARNER) : null,
     });
     setAuthCookie(this.ctx, res, token);
 

@@ -129,3 +129,14 @@ export {
   useUploadVideoMutation,
   useMarkVideoSeenMutation,
 } from './video.api';
+
+export { liveSessionApi } from './live-session.api';
+export {
+  useListLiveSessionsQuery,
+  useGetLiveSessionQuery,
+  useCreateLiveSessionMutation,
+  useUpdateLiveSessionMutation,
+  useDeleteLiveSessionMutation,
+  useGetChatHistoryQuery,
+  usePostChatMessageMutation,
+} from './live-session.api';

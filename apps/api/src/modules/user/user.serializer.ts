@@ -1,6 +1,6 @@
 import type { UserDocument } from '../../models/index.js';
 import type mongoose from 'mongoose';
-import { MemberAccess, UserRole } from '@video/shared';
+import { MemberAccess } from '@video/shared';
 
 type PopulatedRef = {
   _id: mongoose.Types.ObjectId;
@@ -57,7 +57,7 @@ export function serializeUser(
   user: UserDocument,
   extras?: { modules?: AllowedModuleSummary[] },
 ) {
-  const isMember = user.role === UserRole.USER;
+  const isMember = String(user.role ?? '').toLowerCase() === 'user';
   const modules = extras?.modules ?? [];
   return {
     id: String(user._id),

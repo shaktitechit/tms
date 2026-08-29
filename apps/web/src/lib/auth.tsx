@@ -3,13 +3,15 @@
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import { getErrorMessage, useLogoutMutation, useMeQuery } from '@/store/api';
 import type { AuthUser } from '@/lib/types';
-import { dashboardHome, isMemberUser, isTenantAdmin } from '@/lib/roles';
+import { dashboardHome, isLearner, isMemberUser, isTenantAdmin, isTutor } from '@/lib/roles';
 
 interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   isTenant: boolean;
   isUser: boolean;
+  isTutor: boolean;
+  isLearner: boolean;
   dashboardPath: string;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
@@ -42,6 +44,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       isTenant: isTenantAdmin(user),
       isUser: isMemberUser(user),
+      isTutor: isTutor(user),
+      isLearner: isLearner(user),
       dashboardPath: dashboardHome(user),
       refresh,
       logout,

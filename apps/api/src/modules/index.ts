@@ -14,6 +14,7 @@ import { createTenantRouter } from './tenant/index.js';
 import { createTextAreaRouter } from './text-area/index.js';
 import { createUserRouter } from './user/index.js';
 import { createVideoRouter } from './video/index.js';
+import { createLiveSessionRouter } from './live-session/index.js';
 
 export function createApiRouter(ctx: AppContext): Router {
   const router = Router();
@@ -31,6 +32,7 @@ export function createApiRouter(ctx: AppContext): Router {
   router.use('/pdfs', createPdfRouter(ctx));
   router.use('/discussions', createDiscussionRouter(ctx));
   router.use('/videos', createVideoRouter(ctx));
+  router.use('/live-sessions', createLiveSessionRouter(ctx));
   return router;
 }
 
@@ -48,3 +50,4 @@ export { createDiscussionRouter } from './discussion/index.js';
 export { createTenantRouter } from './tenant/index.js';
 export { createUserRouter } from './user/index.js';
 export { createVideoRouter } from './video/index.js';
+export { createLiveSessionRouter } from './live-session/index.js';

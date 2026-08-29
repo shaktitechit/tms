@@ -65,6 +65,7 @@ function ctx(): AppContext {
     } as unknown as AppContext['storage'],
     queue: {} as AppContext['queue'],
     audioQueue: {} as AppContext['audioQueue'],
+    sessionRecordingQueue: {} as AppContext['sessionRecordingQueue'],
   };
 }
 

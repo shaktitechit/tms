@@ -25,7 +25,7 @@ export function AuthCard({
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
         {description ? <p className="mt-2 text-sm text-slate-500">{description}</p> : null}
         <div className="mt-6 space-y-4">{children}</div>
-        {footer ? <div className="mt-6 border-t border-blue-100 pt-4">{footer}</div> : null}
+        {/* {footer ? <div className="mt-6 border-t border-blue-100 pt-4">{footer}</div> : null} */}
       </div>
       {showHomeLink ? (
         <p className="mt-4 text-center text-sm text-slate-500">

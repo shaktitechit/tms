@@ -1,5 +1,5 @@
-import { MemberLoginPortal } from '@/components/portals';
+import { redirect } from 'next/navigation';
 
-export default function UserLoginPage() {
-  return <MemberLoginPortal />;
+export default function LegacyUserLoginPage() {
+  redirect('/login');
 }

@@ -2,14 +2,22 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { VideoStatus } from '@video/shared';
+import { parseYoutubeVideoId, VideoStatus, VideoVisibility, youtubeEmbedUrl } from '@video/shared';
 import { StatusBadge } from '@/components/StatusBadge';
+import { YouTubeEmbed } from '@/components/YouTubeEmbed';
 import { Field, inputClassName, primaryButtonClassName } from '@/components/portals/shared/AuthCard';
 import { useToast } from '@/components/Toaster';
 import { formatBytes } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
 import { canUpload, videoSlugOf, watchPath } from '@/lib/roles';
-import { apiSlice, getErrorMessage, managedVideosPath, useGetVideoStatusQuery, useListModulesQuery } from '@/store/api';
+import {
+  apiSlice,
+  getErrorMessage,
+  managedVideosPath,
+  useGetVideoStatusQuery,
+  useImportYoutubeVideoMutation,
+  useListModulesQuery,
+} from '@/store/api';
 import { useAppDispatch } from '@/store/hooks';
 
 const statusCopy: Record<string, string> = {
@@ -22,17 +30,21 @@ const statusCopy: Record<string, string> = {
 };
 
 type UploadPhase = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
+type VideoSourceMode = 'file' | 'youtube';
 
 export function VideoUploadForm({ detailHref }: { detailHref: (id: string) => string }) {
   const { user } = useAuth();
   const toast = useToast();
   const dispatch = useAppDispatch();
   const { data: modulesData, isLoading: modulesLoading } = useListModulesQuery();
+  const [importYoutube, { isLoading: importingYoutube }] = useImportYoutubeVideoMutation();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [sourceMode, setSourceMode] = useState<VideoSourceMode>('file');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [visibility, setVisibility] = useState('PUBLIC');
+  const [visibility, setVisibility] = useState<VideoVisibility>(VideoVisibility.PUBLIC);
   const [moduleId, setModuleId] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -153,7 +165,56 @@ export function VideoUploadForm({ detailHref }: { detailHref: (id: string) => st
     xhr.send(form);
   }
 
+  async function importFromYoutube() {
+    if (!user) {
+      return;
+    }
+    const videoIdFromUrl = parseYoutubeVideoId(youtubeUrl);
+    if (!videoIdFromUrl) {
+      const message = 'Enter a valid YouTube watch, share, Shorts, or embed link';
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    setPhase('uploading');
+    setError(null);
+    try {
+      const result = await importYoutube({
+        role: user.role,
+        body: {
+          youtubeUrl: youtubeUrl.trim(),
+          title: title.trim() || undefined,
+          description: description.trim() || undefined,
+          visibility,
+          ...(moduleId ? { moduleId } : {}),
+        },
+      }).unwrap();
+      setVideoId(result.video.id);
+      setVideoSlug(videoSlugOf(result.video));
+      setPhase('processing');
+      toast.success('YouTube video queued. Processing started.');
+      dispatch(apiSlice.util.invalidateTags([{ type: 'Videos', id: 'LIST' }]));
+    } catch (err) {
+      const message = getErrorMessage(err, 'Could not add YouTube video');
+      setPhase('error');
+      setError(message);
+      toast.error(message);
+    }
+  }
+
+  function switchSource(next: VideoSourceMode) {
+    setSourceMode(next);
+    setPhase('idle');
+    setError(null);
+    setVideoId(null);
+    setVideoSlug(null);
+    setUploadProgress(0);
+  }
+
   const modules = modulesData?.modules ?? [];
+  const youtubeId = parseYoutubeVideoId(youtubeUrl);
+  const youtubeBusy = importingYoutube || phase === 'uploading' || phase === 'processing';
 
   if (user && !canUpload(user)) {
     return (
@@ -173,36 +234,83 @@ export function VideoUploadForm({ detailHref }: { detailHref: (id: string) => st
         <p className="text-xs uppercase tracking-[0.2em] text-accent">Library</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Upload video</h1>
         <p className="mt-1 text-slate-500">
-          MP4, WebM, MOV, or MKV. Processing happens in the worker, not the API.
+          Upload a file, or add a YouTube link. Processing happens in the worker, not the API.
         </p>
       </div>
 
-      <UploadDropzone
-        dragOver={dragOver}
-        inputRef={inputRef}
-        onDragOver={() => setDragOver(true)}
-        onDragLeave={() => setDragOver(false)}
-        onFiles={onFiles}
-      />
+      <div className="mx-auto flex max-w-3xl gap-2 rounded-full border border-blue-100 bg-slate-50 p-1">
+        <button
+          type="button"
+          onClick={() => switchSource('file')}
+          className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+            sourceMode === 'file' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
+          }`}
+        >
+          Upload file
+        </button>
+        <button
+          type="button"
+          onClick={() => switchSource('youtube')}
+          className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+            sourceMode === 'youtube' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
+          }`}
+        >
+          YouTube link
+        </button>
+      </div>
 
-      {file ? (
-        <UploadDetailsCard
-          file={file}
-          previewUrl={previewUrl}
+      {sourceMode === 'file' ? (
+        <>
+          <UploadDropzone
+            dragOver={dragOver}
+            inputRef={inputRef}
+            onDragOver={() => setDragOver(true)}
+            onDragLeave={() => setDragOver(false)}
+            onFiles={onFiles}
+          />
+
+          {file ? (
+            <UploadDetailsCard
+              file={file}
+              previewUrl={previewUrl}
+              title={title}
+              description={description}
+              moduleId={moduleId}
+              visibility={visibility}
+              modules={modules}
+              modulesLoading={modulesLoading}
+              busy={phase === 'uploading' || phase === 'processing'}
+              onTitleChange={setTitle}
+              onDescriptionChange={setDescription}
+              onModuleChange={setModuleId}
+              onVisibilityChange={(value) => setVisibility(value as VideoVisibility)}
+              onUpload={upload}
+            />
+          ) : null}
+        </>
+      ) : (
+        <YoutubeImportCard
+          youtubeUrl={youtubeUrl}
+          youtubeId={youtubeId}
           title={title}
           description={description}
           moduleId={moduleId}
           visibility={visibility}
           modules={modules}
           modulesLoading={modulesLoading}
-          busy={phase === 'uploading' || phase === 'processing'}
+          busy={youtubeBusy}
+          onUrlChange={(value) => {
+            setYoutubeUrl(value);
+            setPhase('idle');
+            setError(null);
+          }}
           onTitleChange={setTitle}
           onDescriptionChange={setDescription}
           onModuleChange={setModuleId}
-          onVisibilityChange={setVisibility}
-          onUpload={upload}
+          onVisibilityChange={(value) => setVisibility(value as VideoVisibility)}
+          onImport={() => void importFromYoutube()}
         />
-      ) : null}
+      )}
 
       {phase !== 'idle' ? (
         <UploadProgressCard
@@ -354,6 +462,110 @@ function UploadDetailsCard({
       </Field>
       <button type="button" onClick={onUpload} disabled={busy} className={`${primaryButtonClassName} sm:w-auto sm:px-8`}>
         Upload
+      </button>
+    </div>
+  );
+}
+
+function YoutubeImportCard({
+  youtubeUrl,
+  youtubeId,
+  title,
+  description,
+  moduleId,
+  visibility,
+  modules,
+  modulesLoading,
+  busy,
+  onUrlChange,
+  onTitleChange,
+  onDescriptionChange,
+  onModuleChange,
+  onVisibilityChange,
+  onImport,
+}: {
+  youtubeUrl: string;
+  youtubeId: string | null;
+  title: string;
+  description: string;
+  moduleId: string;
+  visibility: string;
+  modules: { id: string; name: string }[];
+  modulesLoading: boolean;
+  busy: boolean;
+  onUrlChange: (value: string) => void;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onModuleChange: (value: string) => void;
+  onVisibilityChange: (value: string) => void;
+  onImport: () => void;
+}) {
+  return (
+    <div className="space-y-5 rounded-2xl border border-blue-100 bg-white p-4 sm:p-5">
+      <Field label="YouTube link">
+        <input
+          value={youtubeUrl}
+          onChange={(event) => onUrlChange(event.target.value)}
+          placeholder="https://www.youtube.com/watch?v=…"
+          className={inputClassName}
+          disabled={busy}
+        />
+      </Field>
+      {youtubeId ? <YouTubeEmbed src={youtubeEmbedUrl(youtubeId)} /> : null}
+      <Field label="Title">
+        <input
+          value={title}
+          onChange={(event) => onTitleChange(event.target.value)}
+          placeholder="Leave blank to use the YouTube title"
+          className={inputClassName}
+          disabled={busy}
+        />
+      </Field>
+      <Field label="Description">
+        <textarea
+          value={description}
+          onChange={(event) => onDescriptionChange(event.target.value)}
+          className={`${inputClassName} min-h-24`}
+          disabled={busy}
+        />
+      </Field>
+      <Field label="Module">
+        <select
+          value={moduleId}
+          onChange={(event) => onModuleChange(event.target.value)}
+          disabled={modulesLoading || busy}
+          className={inputClassName}
+        >
+          <option value="">No module</option>
+          {modules.map((module) => (
+            <option key={module.id} value={module.id}>
+              {module.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {modules.length === 0 && !modulesLoading ? (
+        <p className="text-sm text-slate-500">No modules yet. Create modules first to organise uploads.</p>
+      ) : null}
+      <Field label="Visibility">
+        <select
+          value={visibility}
+          onChange={(event) => onVisibilityChange(event.target.value)}
+          className={inputClassName}
+          disabled={busy}
+        >
+          <option value="PUBLIC">Public</option>
+          <option value="UNLISTED">Unlisted</option>
+          <option value="PRIVATE">Private</option>
+        </select>
+      </Field>
+      <button
+        type="button"
+        onClick={onImport}
+        disabled={busy || !youtubeId}
+        className={`${primaryButtonClassName} sm:w-auto sm:px-8`}
+      >
+        {busy ? 'Adding…' : 'Add YouTube video'}
       </button>
     </div>
   );

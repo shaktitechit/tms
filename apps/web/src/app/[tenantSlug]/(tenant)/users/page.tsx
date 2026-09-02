@@ -128,6 +128,9 @@ export default function TenantUsersPage() {
   }
 
   function openModulesPanel(member: TenantUserDto) {
+    if (!canAssignModules(member)) {
+      return;
+    }
     setAllowingMember(member);
     setModulesError(null);
   }
@@ -186,7 +189,10 @@ export default function TenantUsersPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">Members</h1>
-          <p className="mt-1 text-slate-500">Invite member users into your tenant.</p>
+          <p className="mt-1 text-slate-500">
+            Invite members into your tenant. Assign modules to learners; tutors get every module
+            in their assigned departments.
+          </p>
         </div>
         <button
           type="button"
@@ -222,10 +228,12 @@ export default function TenantUsersPage() {
                 <p className="mt-1 text-sm text-slate-600">{formatDepartments(member)}</p>
                 <p className="mt-1 text-sm capitalize text-slate-600">{member.role}</p>
                 <p className="mt-1 text-sm capitalize text-slate-600">{formatAccess(member)}</p>
-                {member.role === 'user' ? (
+                {canAssignModules(member) ? (
                   <div className="mt-2">
                     <AllowedModulesControl member={member} onAllow={() => openModulesPanel(member)} />
                   </div>
+                ) : member.role === 'user' ? (
+                  <p className="mt-2 text-sm text-slate-500">All department modules</p>
                 ) : null}
                 <div className="mt-3 flex gap-3">
                   <button
@@ -280,11 +288,13 @@ export default function TenantUsersPage() {
                     <td className="px-4 py-3 capitalize text-slate-700">{member.role}</td>
                     <td className="px-4 py-3 capitalize text-slate-700">{formatAccess(member)}</td>
                     <td className="px-4 py-3">
-                      {member.role === 'user' ? (
+                      {canAssignModules(member) ? (
                         <AllowedModulesControl
                           member={member}
                           onAllow={() => openModulesPanel(member)}
                         />
+                      ) : member.role === 'user' ? (
+                        <span className="text-slate-500">All department modules</span>
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}
@@ -406,6 +416,10 @@ function MemberNameLink({
 function formatDepartments(member: TenantUserDto) {
   const names = member.departments?.map((department) => department.name).filter(Boolean) ?? [];
   return names.length > 0 ? names.join(', ') : '—';
+}
+
+function canAssignModules(member: TenantUserDto) {
+  return member.role === 'user' && member.access !== MemberAccess.TUTOR;
 }
 
 function formatAccess(member: TenantUserDto) {

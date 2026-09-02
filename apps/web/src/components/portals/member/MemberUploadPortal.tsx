@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
 import { AudioUploadForm } from '@/components/AudioUploadForm';
 import { VideoUploadForm } from '@/components/VideoUploadForm';
 import { MemberAccessGate } from '@/components/portals/member/MemberAccess';
+import { useMemberWorkspace } from '@/lib/member-workspace';
 
 type UploadTab = 'video' | 'audio';
 
@@ -21,9 +21,8 @@ function TutorUploadUnavailable() {
 }
 
 function TutorUploadForms() {
-  const params = useParams<{ tenantSlug: string; userName: string }>();
+  const { base } = useMemberWorkspace();
   const [tab, setTab] = useState<UploadTab>('video');
-  const base = `/${params.tenantSlug}/${params.userName}`;
 
   return (
     <div className="space-y-6">

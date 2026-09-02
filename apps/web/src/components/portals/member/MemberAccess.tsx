@@ -1,8 +1,9 @@
 'use client';
 
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { memberAccessValue, memberLayer, type MemberLayer } from '@/lib/roles';
+import { dashboardHome, memberAccessValue, memberLayer, type MemberLayer } from '@/lib/roles';
 import type { AuthUser } from '@/lib/types';
 import { useGetUserQuery } from '@/store/api';
 
@@ -98,4 +99,31 @@ export function MemberAccessGate({
   }
 
   return <>{children}</>;
+}
+
+function MemberHomeRedirect() {
+  const { user } = useMemberAccess();
+  const router = useRouter();
+  const href = dashboardHome(user);
+
+  useEffect(() => {
+    router.replace(href);
+  }, [href, router]);
+
+  return <p className="text-slate-500">Redirecting…</p>;
+}
+
+/** Layout gate for the `(tutor)` or `(learner)` member branch. */
+export function MemberBranchLayout({
+  access,
+  children,
+}: {
+  access: MemberLayer;
+  children: React.ReactNode;
+}) {
+  return (
+    <MemberAccessGate access={access} fallback={<MemberHomeRedirect />}>
+      {children}
+    </MemberAccessGate>
+  );
 }

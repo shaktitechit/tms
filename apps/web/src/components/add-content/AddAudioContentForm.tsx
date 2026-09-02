@@ -10,6 +10,8 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { Field, inputClassName, primaryButtonClassName } from '@/components/portals';
 import { useToast } from '@/components/Toaster';
 import { formatBytes } from '@/lib/format';
+import { useAuth } from '@/lib/auth';
+import { isTenantAdmin } from '@/lib/roles';
 import type { AudioDto } from '@/lib/types';
 import {
   apiSlice,
@@ -37,6 +39,8 @@ export function AddAudioContentForm({
   onCancel,
   onSuccess,
 }: LessonContentFormProps) {
+  const { user } = useAuth();
+  const canAddFromLibrary = isTenantAdmin(user);
   const toast = useToast();
   const dispatch = useAppDispatch();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +188,7 @@ export function AddAudioContentForm({
   }
 
   const busy = phase === 'uploading' || phase === 'processing';
+  const activeMode = mode === 'library' && !canAddFromLibrary ? 'upload' : mode;
   const barWidth =
     phase === 'uploading'
       ? uploadProgress
@@ -193,32 +198,34 @@ export function AddAudioContentForm({
 
   return (
     <div className="space-y-5">
-      <div className="flex gap-2 rounded-full border border-blue-100 bg-slate-50 p-1">
-        <button
-          type="button"
-          disabled={busy || linking}
-          onClick={() => setMode('upload')}
-          className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            mode === 'upload' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
-          }`}
-        >
-          Upload new
-        </button>
-        <button
-          type="button"
-          disabled={busy || linking}
-          onClick={() => setMode('library')}
-          className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            mode === 'library' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
-          }`}
-        >
-          Select from library
-        </button>
-      </div>
+      {canAddFromLibrary ? (
+        <div className="flex gap-2 rounded-full border border-blue-100 bg-slate-50 p-1">
+          <button
+            type="button"
+            disabled={busy || linking}
+            onClick={() => setMode('upload')}
+            className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              activeMode === 'upload' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
+            }`}
+          >
+            Upload new
+          </button>
+          <button
+            type="button"
+            disabled={busy || linking}
+            onClick={() => setMode('library')}
+            className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              activeMode === 'library' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
+            }`}
+          >
+            Select from library
+          </button>
+        </div>
+      ) : null}
 
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
-      {mode === 'library' ? (
+      {activeMode === 'library' ? (
         <div className="space-y-4">
           <AudioLibraryPicker
             lessonId={lessonId}

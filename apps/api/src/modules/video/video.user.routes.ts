@@ -9,7 +9,7 @@ import {
 } from '../../middlewares/index.js';
 import type { AppContext } from '../../types.js';
 import { VideoController } from './video.controller.js';
-import { updateVideoSchema } from './video.validators.js';
+import { createYoutubeVideoSchema, updateVideoSchema } from './video.validators.js';
 
 const requireMember = requireRole(UserRole.USER);
 
@@ -20,6 +20,14 @@ export function createUserVideoRouter(ctx: AppContext): Router {
   const guard = [requireAuth(ctx), requireMember] as const;
 
   router.get('/', ...guard, controller.listUser);
+  router.post(
+    '/youtube',
+    requireAuth(ctx),
+    requireTutor,
+    uploadRateLimiter(ctx),
+    validateBody(createYoutubeVideoSchema),
+    controller.uploadYoutube,
+  );
   router.post('/', requireAuth(ctx), requireTutor, uploadRateLimiter(ctx), controller.upload);
   router.get('/:id/status', ...guard, controller.statusUser);
   router.post('/:id/seen', ...guard, controller.markSeenUser);

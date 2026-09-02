@@ -1,5 +1,12 @@
 import type { VideoDocument } from '../../models/index.js';
-import { VideoSeenStatus, VideoStatus, VideoVisibility } from '@video/shared';
+import {
+  VideoSeenStatus,
+  VideoSourceType,
+  VideoStatus,
+  VideoVisibility,
+  youtubeEmbedUrl,
+  youtubeThumbnailUrl,
+} from '@video/shared';
 import type mongoose from 'mongoose';
 
 type PopulatedDepartment = {
@@ -89,11 +96,19 @@ function lessonFields(video: VideoDocument) {
 }
 
 export function serializeVideo(video: VideoDocument, extra: Record<string, unknown> = {}) {
+  const sourceType = (video.sourceType as VideoSourceType | undefined) ?? VideoSourceType.FILE;
+  const youtubeVideoId = video.youtubeVideoId?.trim() || null;
+  const hasHls = Boolean(video.hlsMasterPlaylistKey);
+  const legacyYoutubeEmbed =
+    sourceType === VideoSourceType.YOUTUBE && Boolean(youtubeVideoId) && !hasHls;
+
   return {
     id: String(video._id),
     slug: video.slug,
     title: video.title,
     description: video.description,
+    sourceType,
+    youtubeVideoId,
     originalFilename: video.originalFilename,
     status: video.status as VideoStatus,
     processingProgress: video.processingProgress,
@@ -111,8 +126,17 @@ export function serializeVideo(video: VideoDocument, extra: Record<string, unkno
     createdAt: video.createdAt,
     updatedAt: video.updatedAt,
     errorMessage: video.errorMessage ?? null,
-    thumbnailUrl: video.thumbnailStorageKey ? `/api/videos/${String(video._id)}/thumbnail` : null,
-    playbackUrl: video.status === VideoStatus.READY ? `/api/videos/${String(video._id)}/hls/master.m3u8` : null,
+    thumbnailUrl: video.thumbnailStorageKey
+      ? `/api/videos/${String(video._id)}/thumbnail`
+      : youtubeVideoId
+        ? youtubeThumbnailUrl(youtubeVideoId)
+        : null,
+    playbackUrl:
+      video.status === VideoStatus.READY && hasHls
+        ? `/api/videos/${String(video._id)}/hls/master.m3u8`
+        : video.status === VideoStatus.READY && legacyYoutubeEmbed && youtubeVideoId
+          ? youtubeEmbedUrl(youtubeVideoId)
+          : null,
     seenStatus: VideoSeenStatus.PENDING,
     ...extra,
   };

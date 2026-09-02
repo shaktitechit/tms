@@ -14,16 +14,6 @@ const RESERVED_ROOT = new Set([
   '_next',
 ]);
 
-const TENANT_SECTIONS = new Set([
-  'videos',
-  'audios',
-  'upload',
-  'users',
-  'departments',
-  'settings',
-  'watch',
-]);
-
 function publicRedirect(
   request: NextRequest,
   pathname: string,
@@ -55,6 +45,7 @@ function decodeSession(request: NextRequest): {
     const role = typeof payload.role === 'string' ? payload.role : null;
     const tenantSlug = typeof payload.tenantSlug === 'string' ? payload.tenantSlug : null;
     const username = typeof payload.username === 'string' ? payload.username : null;
+    const access = typeof payload.access === 'string' ? payload.access : null;
     if (!tenantSlug || !role) {
       return { home: null, role };
     }
@@ -62,7 +53,8 @@ function decodeSession(request: NextRequest): {
       return { home: `/${tenantSlug}`, role };
     }
     if (role === 'user' && username) {
-      return { home: `/${tenantSlug}/${username}`, role };
+      const layer = String(access ?? '').toLowerCase() === 'tutor' ? 'tutor' : 'learner';
+      return { home: `/${tenantSlug}/${username}/${layer}`, role };
     }
     return { home: null, role };
   } catch {
@@ -115,8 +107,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/videos/')
   ) {
     if (!authed) {
-      const toUser = pathname.startsWith('/dashboard/user');
-      return publicRedirect(request, toUser ? '/login/user' : '/login/tenant');
+      return publicRedirect(request, '/login');
     }
     const { home } = decodeSession(request);
     const workspaceHome = home ?? '/';
@@ -132,12 +123,7 @@ export function middleware(request: NextRequest) {
 
   if (parts.length >= 1 && !RESERVED_ROOT.has(parts[0]!)) {
     if (!authed) {
-      const looksLikeUser =
-        parts.length >= 2 && !TENANT_SECTIONS.has(parts[1]!);
-      return publicRedirect(
-        request,
-        looksLikeUser ? '/login/user' : '/login/tenant',
-      );
+      return publicRedirect(request, '/login');
     }
     return NextResponse.next();
   }

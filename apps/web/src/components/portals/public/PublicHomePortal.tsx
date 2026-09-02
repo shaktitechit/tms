@@ -1,5 +1,5 @@
-import { LoginChooserPortal } from './LoginChooserPortal';
+import { LoginPortal } from './LoginPortal';
 
 export function PublicHomePortal() {
-  return <LoginChooserPortal />;
+  return <LoginPortal />;
 }

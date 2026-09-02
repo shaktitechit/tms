@@ -4,11 +4,14 @@ import {
   ERROR_CODES,
   UserRole,
   VideoSeenStatus,
+  VideoSourceType,
   VideoStatus,
   VideoVisibility,
   buildStorageKeys,
   canWatchVideo,
+  parseYoutubeVideoId,
   sanitizeOriginalFilename,
+  youtubeWatchUrl,
 } from '@video/shared';
 import { csvList, enqueueVideoProcessing, removeVideoProcessingJob } from '@video/shared/server';
 import type { Readable } from 'node:stream';
@@ -99,6 +102,73 @@ export class VideoService {
 
     video.status = VideoStatus.QUEUED;
     await video.save();
+
+    if (lessonId) {
+      await appendLessonContentOrder(lessonId, 'video', video._id);
+    }
+
+    return serializeVideo(video);
+  }
+
+  async createFromYoutube(input: {
+    userId: string;
+    tenantId: string;
+    youtubeUrl: string;
+    title?: string;
+    description?: string;
+    visibility?: VideoVisibility;
+    moduleId?: string;
+    lessonId?: string;
+  }) {
+    const youtubeVideoId = parseYoutubeVideoId(input.youtubeUrl);
+    if (!youtubeVideoId) {
+      throw new AppError(
+        'Enter a valid YouTube watch, share, Shorts, or embed link',
+        ERROR_CODES.VALIDATION_ERROR,
+        400,
+      );
+    }
+
+    const oembedTitle = input.title?.trim()
+      ? null
+      : await fetchYoutubeTitle(youtubeVideoId, this.ctx.logger);
+    const title = input.title?.trim() || oembedTitle || 'YouTube video';
+    const slug = await videoRepository.allocateSlug(input.tenantId, title);
+    const moduleId = await this.resolveModuleId(input.tenantId, input.moduleId);
+    const lessonId = await this.resolveLessonId(input.tenantId, input.lessonId);
+    const videoId = new mongoose.Types.ObjectId();
+    const keys = buildStorageKeys(String(videoId));
+
+    const video = await videoRepository.create({
+      _id: videoId,
+      title,
+      slug,
+      description: input.description ?? '',
+      sourceType: VideoSourceType.YOUTUBE,
+      youtubeVideoId,
+      originalFilename: `youtube:${youtubeVideoId}.mp4`,
+      originalStorageKey: keys.original,
+      status: VideoStatus.QUEUED,
+      processingProgress: 0,
+      fileSize: 0,
+      mimeType: 'video/mp4',
+      visibility: input.visibility ?? VideoVisibility.PUBLIC,
+      moduleId,
+      lessonId,
+      createdBy: new mongoose.Types.ObjectId(input.userId),
+      tenantId: new mongoose.Types.ObjectId(input.tenantId),
+      availableQualities: [],
+    });
+
+    try {
+      await enqueueVideoProcessing(this.ctx.queue, String(videoId));
+    } catch (error) {
+      this.ctx.logger.error({ err: error, videoId: String(videoId) }, 'Failed to enqueue processing job');
+      video.status = VideoStatus.FAILED;
+      video.errorMessage = 'Failed to enqueue processing job';
+      await video.save();
+      throw new AppError('Failed to enqueue processing job', ERROR_CODES.QUEUE_ERROR, 502);
+    }
 
     if (lessonId) {
       await appendLessonContentOrder(lessonId, 'video', video._id);
@@ -468,5 +538,24 @@ export class VideoService {
     if (String(video.createdBy) !== actor.id) {
       throw forbidden();
     }
+  }
+}
+
+async function fetchYoutubeTitle(
+  videoId: string,
+  logger: AppContext['logger'],
+): Promise<string | null> {
+  try {
+    const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeWatchUrl(videoId))}&format=json`;
+    const response = await fetch(endpoint);
+    if (!response.ok) {
+      return null;
+    }
+    const payload = (await response.json()) as { title?: string };
+    const title = payload.title?.trim();
+    return title || null;
+  } catch (error) {
+    logger.warn({ err: error, videoId }, 'Failed to fetch YouTube title');
+    return null;
   }
 }

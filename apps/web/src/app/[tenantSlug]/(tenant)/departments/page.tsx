@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
+import { ConfirmDeleteModal } from '@/components/ConfirmDeleteModal';
 import {
   DepartmentForm,
   DepartmentModal,
   emptyDepartmentForm,
   type DepartmentFormState,
 } from '@/components/DepartmentFormModal';
-import { ConfirmDeleteModal } from '@/components/ConfirmDeleteModal';
+import { DepartmentIconBadge } from '@/components/DepartmentsListView';
 import { primaryButtonClassName } from '@/components/portals';
 import { useToast } from '@/components/Toaster';
 import type { DepartmentDto } from '@/lib/types';
@@ -231,49 +232,31 @@ function DepartmentCard({
   const moduleCount = department.moduleCount ?? 0;
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-blue-100 bg-white">
-      <Link href={detailHref} className="block">
-        <div className="relative aspect-video bg-blue-50">
-          {department.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={department.thumbnailUrl}
-              alt={department.name}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-slate-400">No thumbnail</div>
-          )}
-          <span className="absolute bottom-2 right-2 rounded bg-slate-900/80 px-1.5 py-0.5 text-xs text-white">
-            {moduleCount} {moduleCount === 1 ? 'module' : 'modules'}
-          </span>
-        </div>
-      </Link>
-      <div className="space-y-3 p-4">
-        <div>
-          <Link href={detailHref} className="hover:text-accent">
-            <h2 className="text-lg font-semibold text-slate-900">{department.name}</h2>
-          </Link>
-          <p className="mt-1 text-sm text-slate-500">
+    <article className="rounded-2xl border border-blue-100 bg-white p-4">
+      <Link href={detailHref} className="flex gap-4">
+        <DepartmentIconBadge />
+        <div className="min-w-0 flex-1 space-y-1">
+          <h2 className="text-lg font-semibold text-slate-900 hover:text-accent">{department.name}</h2>
+          <p className="text-sm text-slate-500">
             /{department.slug} · {moduleCount} {moduleCount === 1 ? 'module' : 'modules'}
           </p>
+          {department.description ? (
+            <p className="line-clamp-2 text-sm text-slate-500">{department.description}</p>
+          ) : null}
         </div>
-        {department.description ? (
-          <p className="line-clamp-2 text-sm text-slate-500">{department.description}</p>
-        ) : null}
-        <div className="flex gap-3 pt-1">
-          <button type="button" onClick={onEdit} className="text-slate-600 hover:text-accent">
-            Edit
-          </button>
-          <button
-            type="button"
-            disabled={deleting}
-            onClick={onDelete}
-            className="text-rose-500 hover:text-rose-400 disabled:opacity-50"
-          >
-            Delete
-          </button>
-        </div>
+      </Link>
+      <div className="mt-3 flex gap-3 pl-16">
+        <button type="button" onClick={onEdit} className="text-slate-600 hover:text-accent">
+          Edit
+        </button>
+        <button
+          type="button"
+          disabled={deleting}
+          onClick={onDelete}
+          className="text-rose-500 hover:text-rose-400 disabled:opacity-50"
+        >
+          Delete
+        </button>
       </div>
     </article>
   );

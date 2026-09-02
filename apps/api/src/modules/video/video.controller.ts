@@ -51,6 +51,28 @@ export class VideoController {
     }
   };
 
+  uploadYoutube = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = this.actor(req);
+      const video = await this.videos.createFromYoutube({
+        userId: user.id,
+        tenantId: user.tenantId,
+        youtubeUrl: req.body.youtubeUrl,
+        title: req.body.title,
+        description: req.body.description,
+        visibility: req.body.visibility,
+        moduleId: req.body.moduleId,
+        lessonId: req.body.lessonId,
+      });
+      res.status(201).json({
+        success: true,
+        video,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   listPublic = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;

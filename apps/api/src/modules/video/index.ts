@@ -8,4 +8,4 @@ export { videoRepository } from './video.repository.js';
 export { videoSeenRepository } from './video-seen.repository.js';
 export { serializeVideo, serializeStatus } from './video.serializer.js';
 export { parseVideoUpload, parseVisibility } from './upload.parser.js';
-export { updateVideoSchema } from './video.validators.js';
+export { createYoutubeVideoSchema, updateVideoSchema } from './video.validators.js';

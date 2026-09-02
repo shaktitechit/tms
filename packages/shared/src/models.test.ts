@@ -27,6 +27,8 @@ describe('Video model', () => {
         'title',
         'slug',
         'description',
+        'sourceType',
+        'youtubeVideoId',
         'originalFilename',
         'originalStorageKey',
         'thumbnailStorageKey',

@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { useToast } from '@/components/Toaster';
 import { formatDuration } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
-import { isTenantAdmin } from '@/lib/roles';
+import { dashboardHome, isTenantAdmin } from '@/lib/roles';
 import type { AudioDto } from '@/lib/types';
 import { useReportAudioSeen } from '@/lib/useReportAudioSeen';
 import {
@@ -76,7 +76,7 @@ export function AudioManagePanel({ audioSlug }: { audioSlug: string }) {
     if (isTenantAdmin(user)) {
       return `/${user.tenantSlug}/audios`;
     }
-    return `/${user.tenantSlug}/${user.username}/audios`;
+    return `${dashboardHome(user)}/audios`;
   }
 
   async function onDelete() {

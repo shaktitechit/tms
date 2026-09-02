@@ -1,5 +1,5 @@
-import { LoginChooserPortal } from '@/components/portals';
+import { LoginPortal } from '@/components/portals';
 
-export default function LoginChooserPage() {
-  return <LoginChooserPortal />;
+export default function LoginPage() {
+  return <LoginPortal />;
 }

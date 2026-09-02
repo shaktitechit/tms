@@ -20,15 +20,16 @@ export const PORTALS: Record<PortalId, PortalConfig> = {
     label: 'TMS',
     description: 'Upload, transcode, and stream adaptive HLS video.',
     loginPath: '/login',
+    loginIntent: 'login',
   },
   tenant: {
     id: 'tenant',
     label: 'Admin',
     description: 'Manage your organization, members, and all tenant videos.',
     role: 'tenant',
-    loginPath: '/login/tenant',
+    loginPath: '/login',
     registerPath: '/register',
-    loginIntent: 'login-tenant',
+    loginIntent: 'login',
     registerIntent: 'register',
   },
   member: {
@@ -36,8 +37,8 @@ export const PORTALS: Record<PortalId, PortalConfig> = {
     label: 'Learner and Tutor',
     description: 'Browse and watch videos in your tenant library.',
     role: 'user',
-    loginPath: '/login/user',
-    loginIntent: 'login-user',
+    loginPath: '/login',
+    loginIntent: 'login',
   },
 };
 
@@ -65,11 +66,8 @@ export function isWorkspacePath(pathname: string): boolean {
 
 /** Which portal owns the current URL. */
 export function resolvePortalFromPath(pathname: string): PortalId {
-  if (pathname === '/login/tenant' || pathname === '/register') {
-    return 'tenant';
-  }
-  if (pathname === '/login/user') {
-    return 'member';
+  if (pathname === '/login' || pathname.startsWith('/login/') || pathname === '/register') {
+    return 'public';
   }
 
   const parts = pathname.split('/').filter(Boolean);

@@ -52,7 +52,9 @@ RUN npm run build -w @video/shared && npm run build -w @video/worker \
 FROM node:20-bookworm-slim AS worker
 WORKDIR /app
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg \
+  && apt-get install -y --no-install-recommends ffmpeg python3 ca-certificates curl \
+  && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+  && chmod a+rx /usr/local/bin/yt-dlp \
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 COPY --from=worker-build /app/package.json /app/package.json

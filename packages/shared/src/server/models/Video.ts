@@ -1,5 +1,5 @@
 import mongoose, { type InferSchemaType, type Model } from 'mongoose';
-import { VideoQuality, VideoStatus, VideoVisibility } from '../../types.js';
+import { VideoQuality, VideoSourceType, VideoStatus, VideoVisibility } from '../../types.js';
 
 const videoSchema = new mongoose.Schema(
   {
@@ -19,6 +19,16 @@ const videoSchema = new mongoose.Schema(
       type: String,
       default: '',
       maxlength: 5000,
+    },
+    sourceType: {
+      type: String,
+      enum: Object.values(VideoSourceType),
+      default: VideoSourceType.FILE,
+    },
+    youtubeVideoId: {
+      type: String,
+      trim: true,
+      maxlength: 11,
     },
     originalFilename: {
       type: String,

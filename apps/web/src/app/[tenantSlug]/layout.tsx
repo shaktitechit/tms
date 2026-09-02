@@ -17,7 +17,7 @@ export default function TenantSlugLayout({ children }: { children: React.ReactNo
     return (
       <p className="px-4 py-8 text-slate-500">
         Please{' '}
-        <Link href="/login/tenant" className="text-accent hover:underline">
+        <Link href="/login" className="text-accent hover:underline">
           sign in
         </Link>
         .

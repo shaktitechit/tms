@@ -19,17 +19,17 @@ export type { WorkspaceNavIcon, WorkspaceNavLink } from './shared/types';
 
 export { PublicNavbar } from './public/PublicNavbar';
 export { PublicHomePortal } from './public/PublicHomePortal';
-export { LoginChooserPortal } from './public/LoginChooserPortal';
+export { LoginPortal } from './public/LoginPortal';
 
-export { TenantLoginPortal, TenantRegisterPortal } from './tenant/TenantAuthPortal';
+export { TenantRegisterPortal } from './tenant/TenantAuthPortal';
 export { TenantUploadPortal } from './tenant/TenantUploadPortal';
 export { TenantWorkspacePortal } from './tenant/TenantWorkspacePortal';
 
-export { MemberLoginPortal } from './member/MemberAuthPortal';
 export { MemberUploadPortal } from './member/MemberUploadPortal';
 export { MemberWorkspacePortal } from './member/MemberWorkspacePortal';
 export {
   MemberAccessProvider,
   MemberAccessGate,
+  MemberBranchLayout,
   useMemberAccess,
 } from './member/MemberAccess';

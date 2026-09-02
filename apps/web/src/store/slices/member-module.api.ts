@@ -50,6 +50,7 @@ export const memberModuleApi = baseApi.injectEndpoints({
         { type: 'MemberModules', id: userId },
         { type: 'MemberModules', id: 'LIST' },
         { type: 'Users', id: 'LIST' },
+        { type: 'Users', id: 'MY_LEARNERS' },
         { type: 'User', id: userId },
       ],
     }),

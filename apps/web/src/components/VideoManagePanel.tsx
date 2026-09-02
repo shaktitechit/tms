@@ -15,6 +15,7 @@ import {
   departmentDetailPath,
   departmentsPath,
   isTenantAdmin,
+  memberLayer,
   moduleDetailPath,
 } from '@/lib/roles';
 import type { VideoDto } from '@/lib/types';
@@ -98,13 +99,20 @@ export function VideoManagePanel({
       return `/${user.tenantSlug}/departments`;
     }
     const username = user.username;
+    const layer = memberLayer(user);
     if (video.departmentSlug && video.moduleSlug) {
-      return moduleDetailPath(user.tenantSlug, video.departmentSlug, video.moduleSlug, username);
+      return moduleDetailPath(
+        user.tenantSlug,
+        video.departmentSlug,
+        video.moduleSlug,
+        username,
+        layer,
+      );
     }
     if (video.departmentSlug) {
-      return departmentDetailPath(user.tenantSlug, video.departmentSlug, username);
+      return departmentDetailPath(user.tenantSlug, video.departmentSlug, username, layer);
     }
-    return departmentsPath(user.tenantSlug, username);
+    return departmentsPath(user.tenantSlug, username, layer);
   }
 
   async function onDelete() {

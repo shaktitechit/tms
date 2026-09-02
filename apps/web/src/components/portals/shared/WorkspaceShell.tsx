@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useGetTenantMeQuery } from '@/store/api';
 import { Sidebar } from '@/components/portals/shared/Sidebar';
+import { WorkspaceBackLink } from '@/components/portals/shared/WorkspaceBackLink';
 import type { WorkspaceNavLink } from '@/components/portals/shared/types';
 
 export type { WorkspaceNavLink };
@@ -114,6 +115,7 @@ export function WorkspaceShell({
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-8">
+          <WorkspaceBackLink />
           {children}
         </main>
       </div>

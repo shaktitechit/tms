@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { ContentSeenStatus, VideoSeenStatus } from '@video/shared';
+import { ContentSeenStatus, MemberAccess, VideoSeenStatus } from '@video/shared';
 import { mongoRegistry } from '../../data/mongoRegistry.js';
 import { serializeAudio } from '../audio/audio.serializer.js';
 import { audioSeenRepository } from '../audio/audio-seen.repository.js';
@@ -22,6 +22,7 @@ import type { AllowedModuleSummary } from './user.serializer.js';
 
 type SerializedMember = {
   id: string;
+  access?: string | null;
   departmentIds: string[];
   departments: Array<{ id: string; name: string; slug: string | null }>;
   moduleIds: string[];
@@ -45,6 +46,29 @@ function scopedObjectIds(ids: string[] | undefined): mongoose.Types.ObjectId[] |
   return ids
     .filter((id) => mongoose.Types.ObjectId.isValid(id))
     .map((id) => new mongoose.Types.ObjectId(id));
+}
+
+function findScopedModules(
+  tenantId: string,
+  departmentObjectIds: mongoose.Types.ObjectId[] | null,
+  moduleObjectIds: mongoose.Types.ObjectId[] | null,
+) {
+  const query =
+    moduleObjectIds !== null
+      ? moduleObjectIds.length
+        ? { tenantId, _id: { $in: moduleObjectIds } }
+        : null
+      : departmentObjectIds !== null
+        ? departmentObjectIds.length
+          ? { tenantId, departmentId: { $in: departmentObjectIds } }
+          : null
+        : { tenantId };
+  if (!query) {
+    return Promise.resolve([]);
+  }
+  return mongoRegistry.models.Module.find(query)
+    .populate('departmentId', 'name slug')
+    .sort({ name: 1 });
 }
 
 function completedSet(
@@ -115,6 +139,11 @@ function groupByLessonId<T extends { lessonId: string | null }>(items: T[]) {
 
 export async function buildMemberProgress(tenantId: string, member: SerializedMember) {
   const assignedDepartmentIds = new Set(member.departmentIds);
+  if (String(member.access ?? '').toLowerCase() === MemberAccess.TUTOR) {
+    return buildCurriculum(tenantId, { id: member.id, tenantId }, {
+      departmentIds: member.departmentIds,
+    });
+  }
   const assignedModules = member.modules.filter(
     (mod) => mod.departmentId && assignedDepartmentIds.has(mod.departmentId),
   );
@@ -141,18 +170,7 @@ export async function buildCurriculum(
             tenantId,
           }).sort({ name: 1 })
         : Promise.resolve([]),
-    moduleObjectIds === null
-      ? mongoRegistry.models.Module.find({ tenantId })
-          .populate('departmentId', 'name slug')
-          .sort({ name: 1 })
-      : moduleObjectIds.length
-        ? mongoRegistry.models.Module.find({
-            _id: { $in: moduleObjectIds },
-            tenantId,
-          })
-            .populate('departmentId', 'name slug')
-            .sort({ name: 1 })
-        : Promise.resolve([]),
+    findScopedModules(tenantId, departmentObjectIds, moduleObjectIds),
   ]);
 
   const lessonModuleIds = moduleDocs.map((mod) => mod._id);

@@ -27,8 +27,13 @@ export const userRepository = {
       .sort({ createdAt: -1 });
   },
 
-  findByTutor(tenantId: string, tutorId: string) {
-    return mongoRegistry.models.User.find({ tenantId, createdBy: tutorId, access: MemberAccess.LEARNER })
+  findLearnersByDepartments(tenantId: string, departmentIds: mongoose.Types.ObjectId[]) {
+    return mongoRegistry.models.User.find({
+      tenantId,
+      role: UserRole.USER,
+      access: MemberAccess.LEARNER,
+      departmentIds: { $in: departmentIds },
+    })
       .populate(DEPARTMENT_POPULATE)
       .sort({ createdAt: -1 });
   },

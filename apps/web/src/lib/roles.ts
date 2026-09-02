@@ -83,9 +83,27 @@ export function tenantHome(tenantSlug: string): string {
   return `/${tenantSlug}`;
 }
 
-/** Member home: /{tenantSlug}/{username} */
-export function userHome(tenantSlug: string, username: string): string {
-  return `/${tenantSlug}/${username}`;
+export function memberLayerFromSegment(value?: string | null): MemberLayer | null {
+  const layer = memberAccessValue(value);
+  return layer === 'tutor' || layer === 'learner' ? layer : null;
+}
+
+/** Member workspace base: /{tenantSlug}/{username}/{learner|tutor} */
+export function memberWorkspaceBase(
+  tenantSlug: string,
+  username: string,
+  layer: MemberLayer,
+): string {
+  return `/${tenantSlug}/${username}/${layer}`;
+}
+
+/** Member home: /{tenantSlug}/{username}/{learner|tutor} */
+export function userHome(
+  tenantSlug: string,
+  username: string,
+  layer: MemberLayer = 'learner',
+): string {
+  return memberWorkspaceBase(tenantSlug, username, layer);
 }
 
 /** Workspace home for the signed-in user. */
@@ -97,7 +115,7 @@ export function dashboardHome(user?: AuthUser | null): string {
     return tenantHome(user.tenantSlug);
   }
   if (user.role === 'user' && user.username) {
-    return userHome(user.tenantSlug, user.username);
+    return userHome(user.tenantSlug, user.username, memberLayer(user) ?? 'learner');
   }
   return '/';
 }
@@ -140,18 +158,24 @@ export function memberDetailPath(tenantSlug: string, username: string): string {
   return `/${tenantSlug}/users/${encodeURIComponent(username)}`;
 }
 
-export function departmentsPath(tenantSlug: string, userName?: string): string {
-  return userName
-    ? `/${tenantSlug}/${userName}/departments`
-    : `/${tenantSlug}/departments`;
+export function departmentsPath(
+  tenantSlug: string,
+  userName?: string,
+  layer?: MemberLayer | null,
+): string {
+  if (userName) {
+    return `${memberWorkspaceBase(tenantSlug, userName, layer ?? 'learner')}/departments`;
+  }
+  return `/${tenantSlug}/departments`;
 }
 
 export function departmentDetailPath(
   tenantSlug: string,
   departmentSlug: string,
   userName?: string,
+  layer?: MemberLayer | null,
 ): string {
-  return `${departmentsPath(tenantSlug, userName)}/${departmentSlug}`;
+  return `${departmentsPath(tenantSlug, userName, layer)}/${departmentSlug}`;
 }
 
 export function moduleDetailPath(
@@ -159,8 +183,9 @@ export function moduleDetailPath(
   departmentSlug: string,
   moduleSlug: string,
   userName?: string,
+  layer?: MemberLayer | null,
 ): string {
-  return `${departmentDetailPath(tenantSlug, departmentSlug, userName)}/modules/${moduleSlug}`;
+  return `${departmentDetailPath(tenantSlug, departmentSlug, userName, layer)}/modules/${moduleSlug}`;
 }
 
 export function lessonDetailPath(
@@ -169,6 +194,7 @@ export function lessonDetailPath(
   moduleSlug: string,
   lessonSlug: string,
   userName?: string,
+  layer?: MemberLayer | null,
 ): string {
-  return `${moduleDetailPath(tenantSlug, departmentSlug, moduleSlug, userName)}/lessons/${lessonSlug}`;
+  return `${moduleDetailPath(tenantSlug, departmentSlug, moduleSlug, userName, layer)}/lessons/${lessonSlug}`;
 }

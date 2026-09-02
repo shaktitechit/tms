@@ -5,6 +5,7 @@ import type {
   MemberAccess,
   VideoQuality,
   VideoSeenStatus,
+  VideoSourceType,
   VideoStatus,
   VideoVisibility,
 } from '@video/shared';
@@ -109,6 +110,7 @@ export interface LessonDto {
   completedPercent?: number;
   serial?: number | null;
   seenStatus?: ContentSeenStatus;
+  locked?: boolean;
   contentOrder?: LessonContentOrderItem[];
   textAreas?: TextAreaDto[];
   videos?: VideoDto[];
@@ -138,6 +140,8 @@ export interface VideoDto {
   slug: string;
   title: string;
   description: string;
+  sourceType: VideoSourceType;
+  youtubeVideoId: string | null;
   originalFilename: string;
   status: VideoStatus;
   processingProgress: number;
@@ -186,6 +190,15 @@ export interface AudioStatusDto {
 export type UpdateVideoBody = Partial<
   Pick<VideoDto, 'title' | 'description' | 'visibility' | 'moduleId' | 'lessonId'>
 >;
+
+export type CreateYoutubeVideoBody = {
+  youtubeUrl: string;
+  title?: string;
+  description?: string;
+  visibility?: VideoVisibility;
+  moduleId?: string;
+  lessonId?: string;
+};
 
 export interface DiscussionDto {
   id: string;

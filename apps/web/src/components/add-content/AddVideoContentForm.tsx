@@ -1,22 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { VideoStatus, VideoVisibility } from '@video/shared';
+import { parseYoutubeVideoId, VideoStatus, VideoVisibility, youtubeEmbedUrl } from '@video/shared';
 import {
   VideoLibraryConfirmActions,
   VideoLibraryPicker,
 } from '@/components/VideoLibraryPicker';
 import { StatusBadge } from '@/components/StatusBadge';
+import { YouTubeEmbed } from '@/components/YouTubeEmbed';
 import { Field, inputClassName, primaryButtonClassName } from '@/components/portals';
 import { useToast } from '@/components/Toaster';
 import { formatBytes } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
+import { isTenantAdmin } from '@/lib/roles';
 import type { VideoDto } from '@/lib/types';
 import {
   managedVideosPath,
   apiSlice,
   getErrorMessage,
   useGetVideoStatusQuery,
+  useImportYoutubeVideoMutation,
   useUpdateVideoMutation,
 } from '@/store/api';
 import { useAppDispatch } from '@/store/hooks';
@@ -32,7 +35,7 @@ const statusCopy: Record<string, string> = {
 };
 
 type UploadPhase = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
-type AddMode = 'upload' | 'library';
+type AddMode = 'upload' | 'youtube' | 'library';
 
 export function AddVideoContentForm({
   lessonId,
@@ -41,6 +44,7 @@ export function AddVideoContentForm({
   onSuccess,
 }: LessonContentFormProps) {
   const { user } = useAuth();
+  const canAddFromLibrary = isTenantAdmin(user);
   const toast = useToast();
   const dispatch = useAppDispatch();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +60,8 @@ export function AddVideoContentForm({
   const [error, setError] = useState<string | null>(null);
   const [selectedLibraryVideo, setSelectedLibraryVideo] = useState<VideoDto | null>(null);
   const [updateVideo, { isLoading: linking }] = useUpdateVideoMutation();
+  const [importYoutube, { isLoading: importingYoutube }] = useImportYoutubeVideoMutation();
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
 
   const shouldPoll = phase === 'processing' && !!videoId;
@@ -201,36 +207,171 @@ export function AddVideoContentForm({
     }
   }
 
+  async function importFromYoutube() {
+    if (!user) {
+      return;
+    }
+    if (!parseYoutubeVideoId(youtubeUrl)) {
+      setError('Enter a valid YouTube watch, share, Shorts, or embed link');
+      return;
+    }
+    setError(null);
+    try {
+      const result = await importYoutube({
+        role: user.role,
+        body: {
+          youtubeUrl: youtubeUrl.trim(),
+          title: title.trim() || undefined,
+          description: description.trim() || undefined,
+          visibility,
+          lessonId,
+          ...(moduleId ? { moduleId } : {}),
+        },
+      }).unwrap();
+      setVideoId(result.video.id);
+      setPhase('processing');
+      toast.success('YouTube video queued. Processing started.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not add YouTube video'));
+    }
+  }
+
   const busy = phase === 'uploading' || phase === 'processing';
+  const youtubeId = parseYoutubeVideoId(youtubeUrl);
+  const modeBusy = busy || linking || importingYoutube;
+  const activeMode = mode === 'library' && !canAddFromLibrary ? 'upload' : mode;
 
   return (
     <div className="space-y-5">
       <div className="flex gap-2 rounded-full border border-blue-100 bg-slate-50 p-1">
         <button
           type="button"
-          disabled={busy || linking}
+          disabled={modeBusy}
           onClick={() => setMode('upload')}
           className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            mode === 'upload' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
+            activeMode === 'upload' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
           }`}
         >
           Upload new
         </button>
         <button
           type="button"
-          disabled={busy || linking}
-          onClick={() => setMode('library')}
+          disabled={modeBusy}
+          onClick={() => setMode('youtube')}
           className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            mode === 'library' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
+            activeMode === 'youtube' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
           }`}
         >
-          Select from library
+          YouTube link
         </button>
+        {canAddFromLibrary ? (
+          <button
+            type="button"
+            disabled={modeBusy}
+            onClick={() => setMode('library')}
+            className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              activeMode === 'library' ? 'bg-white text-accent shadow-sm' : 'text-slate-600 hover:text-accent'
+            }`}
+          >
+            Select from library
+          </button>
+        ) : null}
       </div>
 
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
-      {mode === 'library' ? (
+      {activeMode === 'youtube' ? (
+        <div className="space-y-4">
+          <Field label="YouTube link">
+            <input
+              value={youtubeUrl}
+              onChange={(event) => setYoutubeUrl(event.target.value)}
+              placeholder="https://www.youtube.com/watch?v=…"
+              className={inputClassName}
+              disabled={modeBusy}
+            />
+          </Field>
+          {youtubeId ? <YouTubeEmbed src={youtubeEmbedUrl(youtubeId)} /> : null}
+          <Field label="Title">
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Leave blank to use the YouTube title"
+              className={inputClassName}
+              disabled={modeBusy}
+            />
+          </Field>
+          <Field label="Description">
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              className={`${inputClassName} min-h-24`}
+              disabled={modeBusy}
+            />
+          </Field>
+          <Field label="Visibility">
+            <select
+              value={visibility}
+              onChange={(event) => setVisibility(event.target.value as VideoVisibility)}
+              className={inputClassName}
+              disabled={modeBusy}
+            >
+              <option value={VideoVisibility.PUBLIC}>Public</option>
+              <option value={VideoVisibility.UNLISTED}>Unlisted</option>
+              <option value={VideoVisibility.PRIVATE}>Private</option>
+            </select>
+          </Field>
+          {phase !== 'idle' ? (
+            <div className="space-y-3 rounded-2xl border border-blue-100 bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium text-slate-900">
+                  {phase === 'processing'
+                    ? 'Downloading and processing YouTube video…'
+                    : phase === 'done'
+                      ? 'Video is ready'
+                      : 'Upload issue'}
+                </p>
+                {status ? <StatusBadge status={status.status} /> : null}
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-blue-50">
+                <div
+                  className="h-full bg-accent transition-all"
+                  style={{
+                    width: `${
+                      status?.status === VideoStatus.READY ? 100 : Math.max(4, status?.progress ?? 0)
+                    }%`,
+                  }}
+                />
+              </div>
+              <p className="text-sm text-slate-500">
+                {status
+                  ? `${statusCopy[status.status] ?? status.status}${
+                      status.status === VideoStatus.PROCESSING ? ` · ${status.progress}%` : ''
+                    }`
+                  : 'Queued'}
+              </p>
+            </div>
+          ) : null}
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end sm:gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={modeBusy}
+              className="rounded-full border border-blue-100 px-4 py-2 text-sm text-slate-600 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void importFromYoutube()}
+              disabled={modeBusy || !youtubeId}
+              className={`${primaryButtonClassName} sm:w-auto sm:px-8`}
+            >
+              {importingYoutube || phase === 'processing' ? 'Working…' : 'Add YouTube video'}
+            </button>
+          </div>
+        </div>
+      ) : activeMode === 'library' ? (
         <div className="space-y-4">
           <VideoLibraryPicker
             lessonId={lessonId}

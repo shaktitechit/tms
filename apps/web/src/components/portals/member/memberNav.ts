@@ -1,16 +1,16 @@
-import { departmentDetailPath } from '@/lib/roles';
+import { departmentDetailPath, memberWorkspaceBase, type MemberLayer } from '@/lib/roles';
 import type { WorkspaceNavLink } from '@/components/portals/shared/types';
 
-/** Member workspace nav. Tutors and learners share role `user`; tutors get the Members tab. */
+/** Nav for a single member branch. URLs are /{tenant}/{username}/{learner|tutor}/… */
 export function memberWorkspaceNav(input: {
   tenantSlug: string;
   userName: string;
+  layer: MemberLayer;
   departments: Array<{ name: string; slug: string }>;
-  isTutor?: boolean;
 }): WorkspaceNavLink[] {
-  const base = `/${input.tenantSlug}/${input.userName}`;
+  const base = memberWorkspaceBase(input.tenantSlug, input.userName, input.layer);
   const departmentLinks: WorkspaceNavLink[] = input.departments.map((department) => ({
-    href: departmentDetailPath(input.tenantSlug, department.slug, input.userName),
+    href: departmentDetailPath(input.tenantSlug, department.slug, input.userName, input.layer),
     label: department.name,
     icon: 'departments',
   }));
@@ -18,10 +18,10 @@ export function memberWorkspaceNav(input: {
   return [
     { href: base, label: 'Dashboard', icon: 'dashboard' },
     ...departmentLinks,
-    { href: `${base}/videos`, label: 'Library', icon: 'library' },
     { href: `${base}/live-sessions`, label: 'Live Sessions', icon: 'modules' },
-    ...(input.isTutor ? [{ href: `${base}/members`, label: 'Members', icon: 'members' as const }] : []),
-    { href: `${base}/upload`, label: 'Upload', icon: 'upload' },
+    ...(input.layer === 'tutor'
+      ? [{ href: `${base}/members`, label: 'Members', icon: 'members' as const }]
+      : []),
     { href: `${base}/settings`, label: 'Settings', icon: 'settings' },
   ];
 }

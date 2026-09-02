@@ -10,6 +10,7 @@ import {
   type ModuleFormState,
 } from '@/components/ModuleFormModal';
 import { primaryButtonClassName } from '@/components/portals';
+import { WorkspaceBackAnchor } from '@/components/portals/shared/WorkspaceBackLink';
 import { useToast } from '@/components/Toaster';
 import { useAuth } from '@/lib/auth';
 import { isTenantAdmin, isTutor } from '@/lib/roles';
@@ -27,18 +28,22 @@ import {
 export function DepartmentDetailPanel({
   departmentSlug,
   moduleDetailHref,
+  listHref,
 }: {
   departmentSlug: string;
   moduleDetailHref: (moduleSlug: string) => string;
+  listHref: string;
 }) {
   const toast = useToast();
   const { user } = useAuth();
   const canManage = isTenantAdmin(user);
-  const canAddModule = canManage || isTutor(user);
+  const tutor = isTutor(user);
+  const canAddModule = canManage || tutor;
+  const canSeeAllModules = canManage || tutor;
   const { data: memberData, isLoading: memberLoading, refetch: refetchMember } = useGetUserQuery(
     user?.id ?? '',
     {
-      skip: !user?.id || canManage,
+      skip: !user?.id || canSeeAllModules,
     },
   );
   const { data, error, isLoading } = useGetDepartmentQuery(departmentSlug, {
@@ -68,17 +73,12 @@ export function DepartmentDetailPanel({
   const [editForm, setEditForm] = useState<ModuleFormState>(emptyModuleForm);
   const [pendingDelete, setPendingDelete] = useState<ModuleDto | null>(null);
 
-  const [createdModuleIds, setCreatedModuleIds] = useState<string[]>([]);
-
   const allModules = modulesData?.modules ?? department?.modules ?? [];
-  const assignedModuleIds = new Set([
-    ...(memberData?.user.moduleIds ?? []),
-    ...createdModuleIds,
-  ]);
-  const modules = canManage
+  const assignedModuleIds = new Set(memberData?.user.moduleIds ?? []);
+  const modules = canSeeAllModules
     ? allModules
     : allModules.filter((mod) => assignedModuleIds.has(mod.id));
-  const listingLoading = modulesLoading || (!canManage && memberLoading);
+  const listingLoading = modulesLoading || (!canSeeAllModules && memberLoading);
   const departmentOptions = department
     ? [{ id: department.id, name: department.name }]
     : [];
@@ -142,10 +142,10 @@ export function DepartmentDetailPanel({
       }).unwrap();
       closeCreateModal();
       toast.success(`Module “${result.module.name}” created.`);
-      setCreatedModuleIds((current) =>
-        current.includes(result.module.id) ? current : [...current, result.module.id],
-      );
-      await Promise.all([refetchModules(), refetchMember()]);
+      await Promise.all([
+        refetchModules(),
+        canSeeAllModules ? Promise.resolve() : refetchMember(),
+      ]);
     } catch (err) {
       setFormError(getErrorMessage(err, 'Could not create module'));
     }
@@ -196,18 +196,30 @@ export function DepartmentDetailPanel({
     }
   }
 
+  const back = <WorkspaceBackAnchor href={listHref} label="Departments list" />;
+
   if (error && !department) {
     return (
-      <p className="text-rose-600">{getErrorMessage(error, 'Failed to load department')}</p>
+      <>
+        {back}
+        <p className="text-rose-600">{getErrorMessage(error, 'Failed to load department')}</p>
+      </>
     );
   }
 
   if (isLoading || !department) {
-    return <p className="text-slate-500">Loading…</p>;
+    return (
+      <>
+        {back}
+        <p className="text-slate-500">Loading…</p>
+      </>
+    );
   }
 
   return (
-    <div className="space-y-8">
+    <>
+      {back}
+      <div className="space-y-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <p className="text-sm text-slate-500">/{department.slug}</p>
@@ -236,7 +248,7 @@ export function DepartmentDetailPanel({
             {listingLoading
               ? 'Loading modules…'
               : modules.length === 0
-                ? canAddModule
+                ? canSeeAllModules
                   ? 'No modules in this department yet'
                   : 'No assigned modules in this department'
                 : `${modules.length} ${modules.length === 1 ? 'module' : 'modules'}`}
@@ -249,8 +261,10 @@ export function DepartmentDetailPanel({
           <p className="text-slate-500">Loading modules…</p>
         ) : modules.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-blue-100 bg-white p-8 text-center text-slate-500 sm:p-10">
-            {canAddModule
-              ? 'No modules yet. Click Add module to create one.'
+            {canSeeAllModules
+              ? canAddModule
+                ? 'No modules yet. Click Add module to create one.'
+                : 'No modules in this department yet.'
               : 'No assigned modules in this department.'}
           </p>
         ) : (
@@ -364,5 +378,6 @@ export function DepartmentDetailPanel({
         />
       ) : null}
     </div>
+    </>
   );
 }

@@ -83,7 +83,7 @@ export function MemberModulesPanel({
               Allow modules
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Choose modules {member.name} can access in their assigned departments.
+              Choose modules this learner can access in their assigned departments.
             </p>
           </div>
           <button

@@ -1,4 +1,4 @@
-import type { UpdateVideoBody, VideoDto, VideoStatusDto } from '@/lib/types';
+import type { CreateYoutubeVideoBody, UpdateVideoBody, VideoDto, VideoStatusDto } from '@/lib/types';
 import { baseApi } from '../baseApi';
 import { managedVideosPath } from '../utils';
 
@@ -154,6 +154,23 @@ export const videoApi = baseApi.injectEndpoints({
           : []),
       ],
     }),
+    importYoutubeVideo: builder.mutation<
+      { success: boolean; video: VideoDto },
+      { body: CreateYoutubeVideoBody; role?: string | null }
+    >({
+      query: ({ body, role }) => ({
+        url: `${managedVideosPath(role)}/youtube`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (result) => [
+        { type: 'Videos', id: 'LIST' },
+        { type: 'Lessons', id: 'LIST' },
+        ...(result?.video.lessonId
+          ? [{ type: 'Lesson' as const, id: result.video.lessonId }]
+          : []),
+      ],
+    }),
   }),
 });
 
@@ -165,5 +182,6 @@ export const {
   useUpdateVideoMutation,
   useDeleteVideoMutation,
   useUploadVideoMutation,
+  useImportYoutubeVideoMutation,
   useMarkVideoSeenMutation,
 } = videoApi;

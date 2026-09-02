@@ -1,6 +1,7 @@
 export {
   VideoStatus,
   VideoVisibility,
+  VideoSourceType,
   ContentSeenStatus,
   VideoSeenStatus,
   VideoQuality,
@@ -54,5 +55,13 @@ export { validateVideoFile } from './validation.js';
 export type { FileValidationInput, FileValidationOptions, FileValidationResult } from './validation.js';
 export { AppError, UnrecoverableProcessingError, toErrorBody } from './errors.js';
 export { canWatchVideo, canManageVideo, isTerminalStatus } from './access.js';
+export { previousLessonsBlockAccess, withSequentialLocks } from './lesson-progress.js';
+export {
+  parseYoutubeVideoId,
+  youtubeWatchUrl,
+  youtubeEmbedUrl,
+  youtubeThumbnailUrl,
+  isYoutubePlaybackUrl,
+} from './youtube.js';
 export type { AuthUser } from './access.js';
 export { RESERVED_TENANT_PATHS, slugifySegment } from './slug.js';

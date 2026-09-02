@@ -11,6 +11,7 @@ export interface RunCommandOptions {
   onStdoutLine?: (line: string) => void;
   onStderrLine?: (line: string) => void;
   cwd?: string;
+  timeoutMs?: number;
 }
 
 export function runCommand(
@@ -29,6 +30,28 @@ export function runCommand(
     let stderr = '';
     let stdoutBuffer = '';
     let stderrBuffer = '';
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const finish = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      callback();
+    };
+
+    if (options.timeoutMs && options.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        child.kill('SIGKILL');
+        finish(() => {
+          reject(new Error(`${binary} timed out after ${options.timeoutMs}ms`));
+        });
+      }, options.timeoutMs);
+    }
 
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
@@ -53,20 +76,24 @@ export function runCommand(
     });
 
     child.on('error', (error) => {
-      reject(error);
+      finish(() => {
+        reject(error);
+      });
     });
 
     child.on('close', (code) => {
-      if (stdoutBuffer.trim()) {
-        options.onStdoutLine?.(stdoutBuffer.trim());
-      }
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-      const error = new Error(`${binary} exited with code ${code ?? 'unknown'}`);
-      Object.assign(error, { stderr, stdout, exitCode: code });
-      reject(error);
+      finish(() => {
+        if (stdoutBuffer.trim()) {
+          options.onStdoutLine?.(stdoutBuffer.trim());
+        }
+        if (code === 0) {
+          resolve({ stdout, stderr });
+          return;
+        }
+        const error = new Error(`${binary} exited with code ${code ?? 'unknown'}`);
+        Object.assign(error, { stderr, stdout, exitCode: code });
+        reject(error);
+      });
     });
   });
 }

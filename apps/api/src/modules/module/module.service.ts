@@ -1,5 +1,12 @@
 import mongoose, { type HydratedDocument } from 'mongoose';
-import { ContentSeenStatus, ERROR_CODES, MemberAccess, UserRole } from '@video/shared';
+import {
+  ContentSeenStatus,
+  ERROR_CODES,
+  MemberAccess,
+  UserRole,
+  withSequentialLocks,
+} from '@video/shared';
+import { isLearnerActor } from '../../http/access.js';
 import { forbidden, notFound } from '../../http/errors.js';
 import { mongoRegistry } from '../../data/mongoRegistry.js';
 import type { ModuleDocument } from '../../models/index.js';
@@ -67,15 +74,18 @@ export class ModuleService {
     return {
       ...serialized,
       lessonCount: lessons.length,
-      lessons: lessons.map((lesson) => {
-        const summary = summaries.get(String(lesson._id));
-        return {
-          ...serializeLesson(lesson),
-          duration: summary?.duration ?? 0,
-          completedPercent: summary?.completedPercent ?? 0,
-          seenStatus: summary?.seenStatus ?? ContentSeenStatus.PENDING,
-        };
-      }),
+      lessons: withSequentialLocks(
+        lessons.map((lesson) => {
+          const summary = summaries.get(String(lesson._id));
+          return {
+            ...serializeLesson(lesson),
+            duration: summary?.duration ?? 0,
+            completedPercent: summary?.completedPercent ?? 0,
+            seenStatus: summary?.seenStatus ?? ContentSeenStatus.PENDING,
+          };
+        }),
+        isLearnerActor(actor),
+      ),
     };
   }
 
@@ -316,7 +326,7 @@ export class ModuleService {
     moduleId: mongoose.Types.ObjectId,
     departmentId?: mongoose.Types.ObjectId,
   ) {
-    if (actor.role !== UserRole.USER) {
+    if (actor.role !== UserRole.USER || actor.access === MemberAccess.TUTOR) {
       return;
     }
     const existing = await memberModuleRepository.findOne(

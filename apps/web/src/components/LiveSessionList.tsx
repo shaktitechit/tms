@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
-import { canHostLiveSession, isTenantAdmin } from '@/lib/roles';
+import { canHostLiveSession, dashboardHome, isTenantAdmin } from '@/lib/roles';
 import type { TenantUserDto } from '@/lib/types';
 import {
   useListLiveSessionsQuery,
@@ -99,7 +99,7 @@ export function LiveSessionList({ role }: { role: 'tenant' | 'user' }) {
     if (role === 'tenant') {
       return `/${params.tenantSlug}/live-sessions/${sessionId}`;
     }
-    return `/${params.tenantSlug}/${params.userName}/live-sessions/${sessionId}`;
+    return `${dashboardHome(currentUser)}/live-sessions/${sessionId}`;
   };
 
   return (

@@ -1,5 +1,5 @@
 import type { UserDocument } from '../../models/index.js';
-import type mongoose from 'mongoose';
+import mongoose from 'mongoose';
 import { MemberAccess } from '@video/shared';
 
 type PopulatedRef = {
@@ -44,6 +44,17 @@ function departmentFields(user: UserDocument) {
     departmentIds: departments.map((department) => department.id),
     departments,
   };
+}
+
+export function departmentObjectIds(user: UserDocument): mongoose.Types.ObjectId[] {
+  return departmentFields(user)
+    .departmentIds.filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+}
+
+export function sharesDepartment(left: UserDocument, right: UserDocument): boolean {
+  const allowed = new Set(departmentObjectIds(left).map(String));
+  return departmentObjectIds(right).some((id) => allowed.has(String(id)));
 }
 
 export type AllowedModuleSummary = {

@@ -27,7 +27,7 @@ export function PortalGate({
     return (
       <p className="text-slate-500">
         Please{' '}
-        <Link href={portal.loginPath} className="text-accent hover:underline">
+        <Link href="/login" className="text-accent hover:underline">
           sign in
         </Link>{' '}
         to continue.

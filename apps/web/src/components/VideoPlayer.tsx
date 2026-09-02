@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { isYoutubePlaybackUrl } from '@video/shared';
+import { YouTubeEmbed } from '@/components/YouTubeEmbed';
 import { formatDuration } from '@/lib/format';
 
 interface VideoPlayerProps {
@@ -79,6 +81,13 @@ function FullscreenIcon() {
 }
 
 export function VideoPlayer({ src, poster, onSeen }: VideoPlayerProps) {
+  if (isYoutubePlaybackUrl(src)) {
+    return <YouTubeEmbed src={src} onSeen={onSeen} />;
+  }
+  return <HlsVideoPlayer src={src} poster={poster} onSeen={onSeen} />;
+}
+
+function HlsVideoPlayer({ src, poster, onSeen }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);

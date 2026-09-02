@@ -4,6 +4,22 @@ import Link from 'next/link';
 import type { DepartmentDto } from '@/lib/types';
 import { getErrorMessage, useListDepartmentsQuery } from '@/store/api';
 
+export function DepartmentFolderIcon({ className = 'h-6 w-6' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`fill-current ${className}`} aria-hidden>
+      <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+    </svg>
+  );
+}
+
+export function DepartmentIconBadge() {
+  return (
+    <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-accent">
+      <DepartmentFolderIcon />
+    </span>
+  );
+}
+
 export function DepartmentsListView({
   detailHref,
   title = 'Departments',
@@ -50,42 +66,27 @@ export function DepartmentsListView({
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {displayed.map((department) => (
-            <Link
-              key={department.id}
-              href={detailHref(department)}
-              className="overflow-hidden rounded-2xl border border-blue-100 bg-white transition hover:border-accent/40 hover:shadow-glow"
-            >
-              <div className="relative aspect-video bg-blue-50">
-                {department.thumbnailUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={department.thumbnailUrl}
-                    alt={department.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-slate-400">
-                    No thumbnail
-                  </div>
-                )}
-                <span className="absolute bottom-2 right-2 rounded bg-slate-900/80 px-1.5 py-0.5 text-xs text-white">
-                  {department.moduleCount ?? 0}{' '}
-                  {(department.moduleCount ?? 0) === 1 ? 'module' : 'modules'}
-                </span>
-              </div>
-              <div className="space-y-2 p-4">
-                <h3 className="text-lg font-semibold text-slate-900">{department.name}</h3>
-                <p className="text-sm text-slate-500">
-                  /{department.slug} · {department.moduleCount ?? 0}{' '}
-                  {(department.moduleCount ?? 0) === 1 ? 'module' : 'modules'}
-                </p>
-                {department.description ? (
-                  <p className="line-clamp-2 text-sm text-slate-500">{department.description}</p>
-                ) : null}
-              </div>
-            </Link>
-          ))}
+          {displayed.map((department) => {
+            const moduleCount = department.moduleCount ?? 0;
+            return (
+              <Link
+                key={department.id}
+                href={detailHref(department)}
+                className="flex gap-4 rounded-2xl border border-blue-100 bg-white p-4 transition hover:border-accent/40 hover:shadow-glow"
+              >
+                <DepartmentIconBadge />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <h3 className="text-lg font-semibold text-slate-900">{department.name}</h3>
+                  <p className="text-sm text-slate-500">
+                    /{department.slug} · {moduleCount} {moduleCount === 1 ? 'module' : 'modules'}
+                  </p>
+                  {department.description ? (
+                    <p className="line-clamp-2 text-sm text-slate-500">{department.description}</p>
+                  ) : null}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

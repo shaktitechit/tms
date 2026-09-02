@@ -14,6 +14,7 @@ type AuthUser = {
   name: string;
   username: string;
   role: string;
+  access?: string | null;
   tenantId: string;
   tenantSlug: string;
 };
@@ -35,7 +36,8 @@ function homeFor(user: AuthUser): string | null {
     if (!username) {
       return null;
     }
-    return `/${slug}/${username}`;
+    const layer = String(user.access ?? '').toLowerCase() === 'tutor' ? 'tutor' : 'learner';
+    return `/${slug}/${username}/${layer}`;
   }
   return null;
 }
@@ -53,6 +55,7 @@ function claimsFromToken(token: string): Partial<AuthUser> {
       role: typeof payload.role === 'string' ? payload.role : undefined,
       tenantSlug: typeof payload.tenantSlug === 'string' ? payload.tenantSlug : undefined,
       username: typeof payload.username === 'string' ? payload.username : undefined,
+      access: typeof payload.access === 'string' ? payload.access : undefined,
     };
   } catch {
     return {};
@@ -66,6 +69,7 @@ function mergeUser(user: AuthUser, token: string): AuthUser {
     role: user.role || claims.role || '',
     tenantSlug: user.tenantSlug || claims.tenantSlug || '',
     username: user.username || claims.username || '',
+    access: user.access || claims.access,
   };
 }
 
@@ -130,18 +134,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const name = String(form.get('name') ?? '').trim();
   const tenantName = String(form.get('tenantName') ?? '').trim();
 
-  if (intent === 'login-tenant' || intent === 'login-user') {
-    const portal = intent === 'login-tenant' ? '/login/tenant' : '/login/user';
+  if (intent === 'login' || intent === 'login-tenant' || intent === 'login-user') {
     const result = await callAuth('login', { email, password });
     if ('error' in result) {
-      return fail(req, portal, result.error);
+      return fail(req, '/login', result.error);
     }
     const user = mergeUser(result.user, result.token);
     const dest = homeFor(user);
     if (!dest) {
       return fail(
         req,
-        portal,
+        '/login',
         user.role === 'user'
           ? 'Member account is missing a username. Ask a tenant admin to recreate the member, or re-invite them.'
           : 'Tenant workspace slug is missing. Try registering again.',

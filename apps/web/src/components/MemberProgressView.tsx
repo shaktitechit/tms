@@ -104,15 +104,12 @@ export function MemberProgressView({
   return (
     <div className="space-y-8">
       <div>
-        <Link href={`/${tenantSlug}/users`} className="text-sm text-slate-500 hover:text-accent">
-          ← Members
-        </Link>
         {isLoading ? (
-          <p className="mt-4 text-slate-500">Loading…</p>
+          <p className="text-slate-500">Loading…</p>
         ) : error ? (
-          <p className="mt-4 text-rose-600">{getErrorMessage(error)}</p>
+          <p className="text-rose-600">{getErrorMessage(error)}</p>
         ) : member ? (
-          <div className="mt-3">
+          <div>
             <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">{member.name}</h1>
             <p className="mt-1 text-slate-500">
               @{member.username}
@@ -121,7 +118,7 @@ export function MemberProgressView({
             </p>
           </div>
         ) : (
-          <h1 className="mt-3 text-2xl font-semibold text-slate-900">Member</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Member</h1>
         )}
       </div>
 

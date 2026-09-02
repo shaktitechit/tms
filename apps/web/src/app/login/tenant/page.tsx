@@ -1,5 +1,5 @@
-import { TenantLoginPortal } from '@/components/portals';
+import { redirect } from 'next/navigation';
 
-export default function TenantLoginPage() {
-  return <TenantLoginPortal />;
+export default function LegacyTenantLoginPage() {
+  redirect('/login');
 }

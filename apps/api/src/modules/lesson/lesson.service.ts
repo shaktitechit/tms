@@ -1,7 +1,13 @@
 import mongoose, { type HydratedDocument } from 'mongoose';
-import { ContentSeenStatus, ERROR_CODES, VideoSeenStatus } from '@video/shared';
-import { assertCanManageCurriculum } from '../../http/access.js';
-import { notFound, badRequest } from '../../http/errors.js';
+import {
+  ContentSeenStatus,
+  ERROR_CODES,
+  previousLessonsBlockAccess,
+  VideoSeenStatus,
+  withSequentialLocks,
+} from '@video/shared';
+import { assertCanManageCurriculum, canManageCurriculum, isLearnerActor } from '../../http/access.js';
+import { forbidden, notFound, badRequest } from '../../http/errors.js';
 import { mongoRegistry } from '../../data/mongoRegistry.js';
 import type { LessonDocument } from '../../models/index.js';
 import type { AppContext } from '../../types.js';
@@ -63,7 +69,7 @@ export class LessonService {
       actor,
       lessons.map((lesson) => lesson._id),
     );
-    return Promise.all(
+    const rows = await Promise.all(
       lessons.map(async (lesson) => {
         const base = await this.ensureAuthor(lesson);
         const summary = summaries.get(String(lesson._id));
@@ -75,10 +81,12 @@ export class LessonService {
         };
       }),
     );
+    return withSequentialLocks(rows, isLearnerActor(actor));
   }
 
   async getById(actor: AuthActor, ref: string) {
     const lesson = await this.requireLesson(actor, ref);
+    await this.assertLearnerMayOpenLesson(actor, lesson);
     await lesson.populate('moduleId', 'name slug');
     const filter = { tenantId: actor.tenantId, lessonId: lesson._id };
 
@@ -509,6 +517,36 @@ export class LessonService {
       );
     }
     lessons.splice(0, lessons.length, ...sorted);
+  }
+
+  private async assertLearnerMayOpenLesson(actor: AuthActor, lesson: LessonEntity) {
+    if (canManageCurriculum(actor)) {
+      return;
+    }
+    const moduleId = this.moduleIdOf(lesson);
+    if (!moduleId) {
+      return;
+    }
+    const siblings = await lessonRepository.findByTenant(actor.tenantId, moduleId);
+    await this.ensureSerials(siblings);
+    const index = siblings.findIndex((item) => String(item._id) === String(lesson._id));
+    if (index <= 0) {
+      return;
+    }
+    const previous = siblings.slice(0, index);
+    const summaries = await summarizeLessonsForActor(
+      actor,
+      previous.map((item) => item._id),
+    );
+    if (
+      previousLessonsBlockAccess(
+        previous.map((item) => ({
+          seenStatus: summaries.get(String(item._id))?.seenStatus ?? ContentSeenStatus.PENDING,
+        })),
+      )
+    ) {
+      throw forbidden('Complete the previous lesson to unlock this one');
+    }
   }
 
   private async requireLesson(actor: AuthActor, ref: string) {

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { ContentSeenStatus, withSequentialLocks } from '@video/shared';
 import { ConfirmDeleteModal } from '@/components/ConfirmDeleteModal';
 import {
   LessonForm,
@@ -16,11 +17,12 @@ import {
   type ModuleFormState,
 } from '@/components/ModuleFormModal';
 import { primaryButtonClassName } from '@/components/portals';
+import { WorkspaceBackAnchor } from '@/components/portals/shared/WorkspaceBackLink';
 import { SeenStatusBadge } from '@/components/SeenStatusBadge';
 import { useToast } from '@/components/Toaster';
 import { useAuth } from '@/lib/auth';
-import { formatDuration } from '@/lib/format';
-import { canManageCurriculum } from '@/lib/roles';
+import { formatDuration, formatHours, sumDurations } from '@/lib/format';
+import { canManageCurriculum, isLearner } from '@/lib/roles';
 import type { LessonDto } from '@/lib/types';
 import {
   getErrorMessage,
@@ -36,13 +38,16 @@ import {
 export function ModuleLessonsPanel({
   moduleSlug,
   lessonDetailHref,
+  departmentHref,
 }: {
   moduleSlug: string;
   lessonDetailHref: (lessonSlug: string) => string;
+  departmentHref: string;
 }) {
   const toast = useToast();
   const { user } = useAuth();
   const canManage = canManageCurriculum(user);
+  const learner = isLearner(user);
   const { data, error, isLoading, refetch } = useGetModuleQuery(moduleSlug, {
     skip: !moduleSlug,
   });
@@ -74,6 +79,7 @@ export function ModuleLessonsPanel({
   const lessons = [...(lessonsData?.lessons ?? mod?.lessons ?? [])].sort(
     (a, b) => (a.serial ?? 0) - (b.serial ?? 0),
   );
+  const displayLessons = withSequentialLocks(lessons, learner);
   const moduleOptions = mod ? [{ id: mod.id, name: mod.name }] : [];
   const departmentOptions = mod?.departmentId
     ? [{ id: mod.departmentId, name: mod.departmentName ?? 'Department' }]
@@ -257,53 +263,130 @@ export function ModuleLessonsPanel({
     }
   }
 
+  const completedCount = displayLessons.filter(
+    (lesson) => lesson.seenStatus === ContentSeenStatus.COMPLETED,
+  ).length;
+  const continueLesson =
+    displayLessons.find(
+      (lesson) => !lesson.locked && lesson.seenStatus !== ContentSeenStatus.COMPLETED,
+    ) ?? displayLessons.find((lesson) => !lesson.locked);
+  const continueLabel =
+    completedCount === 0
+      ? 'Start course'
+      : completedCount === displayLessons.length && displayLessons.length > 0
+        ? 'Review course'
+        : 'Continue';
+
+  const back = (
+    <WorkspaceBackAnchor
+      href={departmentHref}
+      label={mod?.departmentName ?? 'Department'}
+    />
+  );
+
   if (error && !mod) {
-    return <p className="text-rose-600">{getErrorMessage(error, 'Failed to load module')}</p>;
+    return (
+      <>
+        {back}
+        <p className="text-rose-600">{getErrorMessage(error, 'Failed to load module')}</p>
+      </>
+    );
   }
 
   if (isLoading || !mod) {
-    return <p className="text-slate-500">Loading…</p>;
+    return (
+      <>
+        {back}
+        <p className="text-slate-500">Loading…</p>
+      </>
+    );
   }
 
+  const totalDuration = formatHours(sumDurations(lessons));
+  const progressPercent =
+    displayLessons.length === 0
+      ? 0
+      : Math.round((completedCount / displayLessons.length) * 100);
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
-        <div>
-          <p className="text-sm text-slate-500">/{mod.slug}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-900 sm:text-3xl">{mod.name}</h1>
-          {mod.description ? (
-            <p className="mt-2 max-w-2xl text-slate-500">{mod.description}</p>
-          ) : null}
-        </div>
-        {canManage ? (
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-              type="button"
-              onClick={openEditModule}
-              className="rounded-full border border-blue-100 bg-white px-5 py-2.5 font-medium text-slate-700 hover:border-blue-200 hover:bg-blue-50"
-            >
-              Edit module
-            </button>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className={`${primaryButtonClassName} sm:w-auto sm:px-6`}
-            >
-              Add lesson
-            </button>
+    <>
+      {back}
+      <div className="space-y-8">
+      <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white">
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-start">
+          <span className="h-36 w-full shrink-0 overflow-hidden rounded-xl bg-blue-50 sm:h-40 lg:h-44 lg:w-72">
+            {mod.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={mod.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+            ) : null}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-slate-500">
+              {mod.departmentName ? `Department · ${mod.departmentName}` : 'Module'}
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold text-slate-900 sm:text-3xl">{mod.name}</h1>
+            {mod.description ? (
+              <p className="mt-2 max-w-2xl text-slate-500">{mod.description}</p>
+            ) : null}
+            <p className="mt-3 text-sm text-slate-500">
+              {lessonsLoading
+                ? 'Loading lessons…'
+                : lessons.length === 0
+                  ? 'No lessons yet'
+                  : `${lessons.length} ${lessons.length === 1 ? 'lesson' : 'lessons'} · ${totalDuration} · ${completedCount} complete`}
+            </p>
+            {lessons.length > 0 ? (
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-50">
+                <div
+                  className="h-full rounded-full bg-accent transition-all"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            ) : null}
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              {continueLesson ? (
+                <Link
+                  href={lessonDetailHref(continueLesson.slug)}
+                  className={`${primaryButtonClassName} sm:w-auto sm:px-6`}
+                >
+                  {continueLabel}
+                  {continueLabel !== 'Review course' ? ` · ${continueLesson.name}` : ''}
+                </Link>
+              ) : null}
+              {canManage ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={openEditModule}
+                    className="rounded-full border border-blue-100 bg-white px-5 py-2.5 font-medium text-slate-700 hover:border-blue-200 hover:bg-blue-50"
+                  >
+                    Edit module
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    className="rounded-full border border-blue-100 bg-white px-5 py-2.5 font-medium text-slate-700 hover:border-blue-200 hover:bg-blue-50"
+                  >
+                    Add lesson
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>
-        ) : null}
-      </div>
+        </div>
+      </section>
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">Lessons</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Course lessons</h2>
           <p className="mt-1 text-sm text-slate-500">
             {lessonsLoading
               ? 'Loading lessons…'
               : lessons.length === 0
                 ? 'No lessons in this module yet'
-                : `${lessons.length} ${lessons.length === 1 ? 'lesson' : 'lessons'}`}
+                : learner
+                  ? 'Complete each lesson to unlock the next'
+                  : 'Open a lesson to teach or review content'}
           </p>
         </div>
         {lessonsError && !createOpen && !editingLesson ? (
@@ -316,118 +399,145 @@ export function ModuleLessonsPanel({
             {canManage ? 'No lessons yet. Click Add lesson to create one.' : 'No lessons in this module yet.'}
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-blue-100 bg-white">
-            <table className="w-full min-w-[52rem] text-left text-sm">
-              <thead className="bg-blue-50 text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 font-medium">#</th>
-                  <th className="px-4 py-3 font-medium">Lesson</th>
-                  <th className="px-4 py-3 font-medium">Duration</th>
-                  <th className="px-4 py-3 font-medium">Progress</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Author</th>
-                  <th className="px-4 py-3 font-medium" />
-                </tr>
-              </thead>
-              <tbody className={reordering ? 'opacity-70' : undefined}>
-                {lessons.map((lesson, index) => (
-                  <tr key={lesson.id} className="border-t border-blue-50">
-                    <td className="px-4 py-3 align-middle">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 text-center font-medium tabular-nums text-slate-700">
-                          {lesson.serial ?? index + 1}
-                        </span>
-                        {canManage ? (
-                          <div className="flex flex-col">
-                            <button
-                              type="button"
-                              aria-label="Move lesson up"
-                              disabled={index === 0 || reordering}
-                              onClick={() => void moveLesson(index, -1)}
-                              className="text-slate-400 hover:text-accent disabled:opacity-30"
-                            >
-                              ▲
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Move lesson down"
-                              disabled={index === lessons.length - 1 || reordering}
-                              onClick={() => void moveLesson(index, 1)}
-                              className="text-slate-400 hover:text-accent disabled:opacity-30"
-                            >
-                              ▼
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={lessonDetailHref(lesson.slug)}
-                        className="flex items-center gap-3 hover:text-accent"
+          <ol className={`divide-y divide-blue-50 overflow-hidden rounded-2xl border border-blue-100 bg-white ${reordering ? 'opacity-70' : ''}`}>
+            {displayLessons.map((lesson, index) => {
+              const serial = lesson.serial ?? index + 1;
+              const completed = lesson.seenStatus === ContentSeenStatus.COMPLETED;
+              const isContinue = continueLesson?.id === lesson.id && !completed;
+
+              const meta = (
+                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                  <span className="tabular-nums">{formatDuration(lesson.duration)}</span>
+                  {lesson.locked ? (
+                    <span>Complete the previous lesson to unlock</span>
+                  ) : (
+                    <>
+                      <span className="tabular-nums">{lesson.completedPercent ?? 0}%</span>
+                      <SeenStatusBadge status={lesson.seenStatus} />
+                    </>
+                  )}
+                </span>
+              );
+
+              const thumb = (
+                <span
+                  className={`h-14 w-[4.5rem] shrink-0 overflow-hidden rounded-lg ${
+                    lesson.locked ? 'bg-slate-100' : 'bg-blue-50'
+                  }`}
+                >
+                  {lesson.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={lesson.thumbnailUrl}
+                      alt=""
+                      className={`h-full w-full object-cover ${lesson.locked ? 'opacity-50' : ''}`}
+                    />
+                  ) : null}
+                </span>
+              );
+
+              const marker = (
+                <span
+                  className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                    completed
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : lesson.locked
+                        ? 'bg-slate-100 text-slate-400'
+                        : isContinue
+                          ? 'bg-accent text-white'
+                          : 'bg-blue-50 text-slate-700'
+                  }`}
+                >
+                  {completed ? <CheckIcon /> : lesson.locked ? <LockIcon /> : serial}
+                </span>
+              );
+
+              return (
+                <li
+                  key={lesson.id}
+                  className={`flex items-stretch gap-2 px-3 py-3 sm:px-4 ${
+                    lesson.locked ? 'bg-slate-50/70' : isContinue ? 'bg-blue-50/60' : ''
+                  }`}
+                >
+                  {canManage ? (
+                    <div className="flex flex-col justify-center">
+                      <button
+                        type="button"
+                        aria-label="Move lesson up"
+                        disabled={index === 0 || reordering}
+                        onClick={() => void moveLesson(index, -1)}
+                        className="text-slate-400 hover:text-accent disabled:opacity-30"
                       >
-                        <span className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-blue-50">
-                          {lesson.thumbnailUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={lesson.thumbnailUrl}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Move lesson down"
+                        disabled={index === lessons.length - 1 || reordering}
+                        onClick={() => void moveLesson(index, 1)}
+                        className="text-slate-400 hover:text-accent disabled:opacity-30"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  ) : null}
+                  {lesson.locked ? (
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      {thumb}
+                      {marker}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5 font-medium text-slate-500">
+                          {lesson.name}
+                        </span>
+                        {meta}
+                      </span>
+                    </div>
+                  ) : (
+                    <Link
+                      href={lessonDetailHref(lesson.slug)}
+                      className="flex min-w-0 flex-1 items-center gap-3 hover:text-accent"
+                    >
+                      {thumb}
+                      {marker}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                          {lesson.name}
+                          {isContinue ? (
+                            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-accent">
+                              Up next
+                            </span>
                           ) : null}
                         </span>
-                        <span className="min-w-0">
-                          <span className="block font-medium text-slate-900">{lesson.name}</span>
-                          <span className="mt-0.5 block truncate text-xs text-slate-500">
-                            /{lesson.slug}
-                          </span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-slate-700">
-                      {formatDuration(lesson.duration)}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-slate-700">
-                      {lesson.completedPercent ?? 0}%
-                    </td>
-                    <td className="px-4 py-3">
-                      <SeenStatusBadge status={lesson.seenStatus} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-slate-800">{lesson.authorName}</p>
-                      <p className="truncate text-xs text-slate-500">{lesson.authorEmail}</p>
-                    </td>
-                    {canManage ? (
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-3">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(lesson)}
-                            className="text-slate-600 hover:text-accent"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            disabled={deleting}
-                            onClick={() => {
-                              setFormError(null);
-                              setPendingDelete(lesson);
-                            }}
-                            className="text-rose-500 hover:text-rose-400 disabled:opacity-50"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    ) : (
-                      <td className="px-4 py-3" />
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        {meta}
+                      </span>
+                    </Link>
+                  )}
+                  {canManage ? (
+                    <div className="flex shrink-0 flex-col justify-center gap-1 sm:flex-row sm:items-center sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(lesson)}
+                        className="text-sm text-slate-600 hover:text-accent"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => {
+                          setFormError(null);
+                          setPendingDelete(lesson);
+                        }}
+                        className="text-sm text-rose-500 hover:text-rose-400 disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
         )}
       </section>
 
@@ -494,5 +604,35 @@ export function ModuleLessonsPanel({
         />
       ) : null}
     </div>
+    </>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className="h-3.5 w-3.5">
+      <path
+        fillRule="evenodd"
+        d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.426.006L3.29 9.254A1 1 0 1 1 4.71 7.846l3.04 3.052 6.536-6.614a1 1 0 0 1 1.418.006Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden
+      className="h-3.5 w-3.5 shrink-0"
+    >
+      <path
+        fillRule="evenodd"
+        d="M10 1.5A3.5 3.5 0 0 0 6.5 5v2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-.5V5A3.5 3.5 0 0 0 10 1.5ZM8 5a2 2 0 1 1 4 0v2H8V5Z"
+        clipRule="evenodd"
+      />
+    </svg>
   );
 }

@@ -20,6 +20,7 @@ export function AuthCredentialsForm({
   eyebrow,
   title,
   description,
+  showHomeLink = true,
 }: {
   intent: string;
   submitLabel: string;
@@ -29,6 +30,7 @@ export function AuthCredentialsForm({
   eyebrow: string;
   title: string;
   description: string;
+  showHomeLink?: boolean;
 }) {
   const toast = useToast();
 
@@ -41,7 +43,13 @@ export function AuthCredentialsForm({
   }, [error, toast]);
 
   return (
-    <AuthCard eyebrow={eyebrow} title={title} description={description} footer={footer}>
+    <AuthCard
+      eyebrow={eyebrow}
+      title={title}
+      description={description}
+      footer={footer}
+      showHomeLink={showHomeLink}
+    >
       <form action="/api/auth/session" method="post" className="space-y-4">
         <input type="hidden" name="intent" value={intent} />
         {children}

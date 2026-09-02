@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppError, ERROR_CODES, VideoSeenStatus, VideoStatus, VideoVisibility } from '@video/shared';
+import {
+  AppError,
+  ERROR_CODES,
+  VideoSeenStatus,
+  VideoSourceType,
+  VideoStatus,
+  VideoVisibility,
+} from '@video/shared';
 import mongoose from 'mongoose';
 import type { AppContext } from '../../types.js';
 
@@ -74,6 +81,8 @@ describe('VideoService authorization and deletion', () => {
     findByRef.mockReset();
     deleteById.mockReset();
     find.mockReset();
+    create.mockReset();
+    enqueue.mockReset();
     removeJob.mockReset();
     allocateSlug.mockReset();
     deleteByVideoId.mockReset();
@@ -283,5 +292,51 @@ describe('VideoService authorization and deletion', () => {
       tenantId: String(tenantId),
     });
     expect(result.seenStatus).toBe(VideoSeenStatus.COMPLETED);
+  });
+
+  it('queues a YouTube video for processing', async () => {
+    allocateSlug.mockResolvedValue('intro');
+    enqueue.mockResolvedValue('job-id');
+    create.mockImplementation(async (data) => ({
+      ...data,
+      save: vi.fn(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ title: 'Intro from YouTube' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = new VideoService(ctx());
+    const result = await service.createFromYoutube({
+      userId: new mongoose.Types.ObjectId().toHexString(),
+      tenantId: new mongoose.Types.ObjectId().toHexString(),
+      youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      description: 'Linked from YouTube',
+      visibility: VideoVisibility.PUBLIC,
+    });
+
+    expect(result.status).toBe(VideoStatus.QUEUED);
+    expect(result.sourceType).toBe(VideoSourceType.YOUTUBE);
+    expect(result.youtubeVideoId).toBe('dQw4w9WgXcQ');
+    expect(result.title).toBe('Intro from YouTube');
+    expect(result.playbackUrl).toBeNull();
+    expect(enqueue).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('rejects an invalid YouTube link', async () => {
+    const service = new VideoService(ctx());
+    await expect(
+      service.createFromYoutube({
+        userId: new mongoose.Types.ObjectId().toHexString(),
+        tenantId: new mongoose.Types.ObjectId().toHexString(),
+        youtubeUrl: 'https://vimeo.com/123',
+      }),
+    ).rejects.toMatchObject({
+      code: ERROR_CODES.VALIDATION_ERROR,
+    });
   });
 });

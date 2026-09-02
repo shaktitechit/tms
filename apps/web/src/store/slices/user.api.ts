@@ -59,6 +59,7 @@ export const userApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, { id }) => [
         { type: 'User', id },
         { type: 'Users', id: 'LIST' },
+        { type: 'Users', id: 'MY_LEARNERS' },
         'Me',
       ],
     }),
@@ -84,7 +85,7 @@ export const userApi = baseApi.injectEndpoints({
     }),
     createLearner: builder.mutation<
       { success: boolean; user: TenantUserDto },
-      { email: string; password: string; name: string }
+      { email: string; password: string; name: string; departmentIds?: string[] }
     >({
       query: (body) => ({
         url: '/users/my-learners',

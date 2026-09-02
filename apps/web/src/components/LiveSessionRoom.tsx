@@ -11,7 +11,7 @@ import {
   useUpdateLiveSessionMutation,
 } from '@/store/slices';
 import type { LiveChatMessageDto } from '@/lib/types';
-import { canHostLiveSession } from '@/lib/roles';
+import { canHostLiveSession, dashboardHome } from '@/lib/roles';
 import { io, Socket } from 'socket.io-client';
 import { VideoPlayer } from '@/components/VideoPlayer';
 
@@ -1063,7 +1063,7 @@ export function LiveSessionRoom({ role }: { role: 'tenant' | 'user' }) {
   const sessionsListLink =
     role === 'tenant'
       ? `/${params.tenantSlug}/live-sessions`
-      : `/${params.tenantSlug}/${params.userName}/live-sessions`;
+      : `${dashboardHome(currentUser)}/live-sessions`;
 
   // Dynamic Video Grid Items (Local user + remote participants)
   const roomPeersList = Object.entries(roomUsers);

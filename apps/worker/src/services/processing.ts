@@ -1,9 +1,10 @@
-import { readdir } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Job } from 'bullmq';
 import {
   HLS_CONTENT_TYPES,
   UnrecoverableProcessingError,
+  VideoSourceType,
   VideoStatus,
   buildStorageKeys,
   qualitiesForSource,
@@ -14,6 +15,7 @@ import { cleanupDir, createJobTempDir } from '../utils/temp.js';
 import { transcodeVariant, writeMasterPlaylist } from './hls.js';
 import { probeVideo } from './probe.js';
 import { generateThumbnail } from './thumbnail.js';
+import { downloadYoutubeVideo } from './youtube-download.js';
 
 export interface ProcessingDeps {
   storage: StorageService;
@@ -78,6 +80,56 @@ async function setProgress(
   logger.info({ videoId, jobId: job.id, stage, progress: clamped }, 'Processing progress');
 }
 
+async function ensureLocalSource(input: {
+  video: {
+    sourceType?: string;
+    youtubeVideoId?: string | null;
+    originalStorageKey: string;
+    mimeType?: string;
+    fileSize?: number;
+    save: () => Promise<unknown>;
+  };
+  videoId: string;
+  keys: ReturnType<typeof buildStorageKeys>;
+  sourcePath: string;
+  job: Job<VideoProcessingJobData>;
+  deps: ProcessingDeps;
+  logger: Logger;
+}): Promise<boolean> {
+  if (input.video.sourceType !== VideoSourceType.YOUTUBE) {
+    return false;
+  }
+
+  const placeholderKey =
+    !input.video.originalStorageKey || input.video.originalStorageKey.startsWith('youtube:');
+  const missingOriginal =
+    placeholderKey || !(await input.deps.storage.exists(input.video.originalStorageKey));
+  if (!missingOriginal) {
+    return false;
+  }
+
+  const youtubeVideoId = input.video.youtubeVideoId?.trim();
+  if (!youtubeVideoId) {
+    throw new UnrecoverableProcessingError('YouTube video is missing a video id');
+  }
+
+  input.logger.info({ stage: 'youtube-download', youtubeVideoId }, 'Downloading from YouTube');
+  await downloadYoutubeVideo({
+    youtubeVideoId,
+    outputPath: input.sourcePath,
+    logger: input.logger,
+  });
+
+  const fileStat = await stat(input.sourcePath);
+  await input.deps.storage.uploadFile(input.sourcePath, input.keys.original, 'video/mp4');
+  input.video.originalStorageKey = input.keys.original;
+  input.video.fileSize = fileStat.size;
+  input.video.mimeType = 'video/mp4';
+  await input.video.save();
+  await setProgress(input.videoId, input.job, 8, 'youtube-download', input.logger);
+  return true;
+}
+
 export async function processVideoJob(
   job: Job<VideoProcessingJobData>,
   deps: ProcessingDeps,
@@ -104,9 +156,20 @@ export async function processVideoJob(
 
   try {
     const sourcePath = path.join(tempDir, 'source.mp4');
-    logger.info({ stage: 'download', key: video.originalStorageKey }, 'Downloading original');
-    await deps.storage.downloadToFile(video.originalStorageKey, sourcePath);
-    await setProgress(videoId, job, 8, 'download', logger);
+    const fetchedFromYoutube = await ensureLocalSource({
+      video,
+      videoId,
+      keys,
+      sourcePath,
+      job,
+      deps,
+      logger,
+    });
+    if (!fetchedFromYoutube) {
+      logger.info({ stage: 'download', key: video.originalStorageKey }, 'Downloading original');
+      await deps.storage.downloadToFile(video.originalStorageKey, sourcePath);
+      await setProgress(videoId, job, 8, 'download', logger);
+    }
 
     logger.info({ stage: 'probe' }, 'Inspecting source with ffprobe');
     const probe = await probeVideo(sourcePath, logger);

@@ -1,12 +1,15 @@
 import mongoose from 'mongoose';
-import { AppError, ERROR_CODES, UserRole } from '@video/shared';
+import { AppError, ERROR_CODES, MemberAccess, UserRole } from '@video/shared';
+import { isTutorActor } from '../../http/access.js';
 import { forbidden, notFound } from '../../http/errors.js';
 import { moduleRepository } from '../module/module.repository.js';
+import { departmentObjectIds, sharesDepartment } from '../user/user.serializer.js';
 import { userRepository } from '../user/user.repository.js';
+import type { UserDocument } from '../../models/index.js';
 import { allowedModuleSummary, serializeMemberModule } from './member-module.serializer.js';
 import { memberModuleRepository } from './member-module.repository.js';
 
-type AuthActor = { id: string; role: string; tenantId: string };
+type AuthActor = { id: string; role: string; tenantId: string; access?: string | null };
 
 export class MemberModuleService {
   async list(actor: AuthActor, userId: string) {
@@ -51,10 +54,32 @@ export class MemberModuleService {
   }
 
   async replace(actor: AuthActor, input: { userId: string; moduleIds: string[] }) {
-    this.assertTenantAdmin(actor);
     const member = await this.requireMember(actor, input.userId);
-    const resolved = await this.resolveAllowedModules(actor.tenantId, member, input.moduleIds);
-    await memberModuleRepository.deleteByUser(actor.tenantId, String(member._id));
+    const tutor = await this.requireCanAssignModules(actor, member);
+    const assignableDepartments = tutor
+      ? this.intersectDepartmentIds(member, tutor)
+      : member.departmentIds;
+    const resolved = await this.resolveAllowedModules(
+      actor.tenantId,
+      { departmentIds: assignableDepartments },
+      input.moduleIds,
+    );
+
+    if (tutor) {
+      const assignable = new Set(assignableDepartments.map((id) => String(id)));
+      const existing = await memberModuleRepository.findByUser(actor.tenantId, String(member._id));
+      const staleIds = existing
+        .filter((row) => {
+          const departmentId =
+            this.moduleDepartmentId(row.moduleId) ?? (row.departmentId ? String(row.departmentId) : null);
+          return departmentId && assignable.has(departmentId);
+        })
+        .map((row) => String(row._id));
+      await Promise.all(staleIds.map((id) => memberModuleRepository.deleteById(id, actor.tenantId)));
+    } else {
+      await memberModuleRepository.deleteByUser(actor.tenantId, String(member._id));
+    }
+
     const rows = await memberModuleRepository.insertMany(
       resolved.map((item) => ({
         userId: member._id,
@@ -135,6 +160,13 @@ export class MemberModuleService {
         403,
       );
     }
+    if (user.access === MemberAccess.TUTOR) {
+      throw new AppError(
+        'Tutors have access to all modules in their assigned departments',
+        ERROR_CODES.FORBIDDEN,
+        403,
+      );
+    }
     return user;
   }
 
@@ -194,6 +226,25 @@ export class MemberModuleService {
       return this.refId((raw as { departmentId?: unknown }).departmentId);
     }
     return null;
+  }
+
+  private intersectDepartmentIds(member: UserDocument, tutor: UserDocument) {
+    const allowed = new Set(departmentObjectIds(tutor).map(String));
+    return departmentObjectIds(member).filter((id) => allowed.has(String(id)));
+  }
+
+  private async requireCanAssignModules(actor: AuthActor, member: UserDocument) {
+    if (actor.role === UserRole.TENANT) {
+      return null;
+    }
+    if (!isTutorActor(actor)) {
+      throw forbidden();
+    }
+    const tutor = await userRepository.findById(actor.id);
+    if (!tutor || String(tutor.tenantId) !== actor.tenantId || !sharesDepartment(tutor, member)) {
+      throw forbidden();
+    }
+    return tutor;
   }
 
   private refId(raw: unknown) {

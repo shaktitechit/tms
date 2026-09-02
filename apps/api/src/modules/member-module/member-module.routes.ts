@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireTenantAdmin, validateBody } from '../../middlewares/index.js';
+import { requireAuth, requireTenantAdmin, requireTenantOrTutor, validateBody } from '../../middlewares/index.js';
 import type { AppContext } from '../../types.js';
 import { MemberModuleController } from './member-module.controller.js';
 import {
@@ -22,7 +22,7 @@ export function createMemberModuleRouter(ctx: AppContext): Router {
   router.put(
     '/',
     requireAuth(ctx),
-    requireTenantAdmin,
+    requireTenantOrTutor,
     validateBody(replaceMemberModulesSchema),
     controller.replace,
   );

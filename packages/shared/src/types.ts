@@ -13,6 +13,12 @@ export enum VideoVisibility {
   PRIVATE = 'PRIVATE',
 }
 
+/** How the video was added. FILE is uploaded and transcoded; YOUTUBE is embedded. */
+export enum VideoSourceType {
+  FILE = 'FILE',
+  YOUTUBE = 'YOUTUBE',
+}
+
 /** Per-viewer progress for lesson content. Defaults to pending until completed. */
 export enum ContentSeenStatus {
   PENDING = 'PENDING',

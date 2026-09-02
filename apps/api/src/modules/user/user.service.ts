@@ -2,17 +2,18 @@ import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import { AppError, ERROR_CODES, MemberAccess, UserRole } from '@video/shared';
 import { isObjectIdString } from '../content/content.utils.js';
+import { isTutorActor } from '../../http/access.js';
 import { forbidden, notFound } from '../../http/errors.js';
 import { departmentRepository } from '../department/department.repository.js';
 import { MemberModuleService } from '../member-module/member-module.service.js';
 import { buildMemberProgress } from './user-progress.service.js';
-import { serializeUser } from './user.serializer.js';
+import { departmentObjectIds, serializeUser, sharesDepartment } from './user.serializer.js';
 import { userRepository } from './user.repository.js';
 import type { UserDocument } from '../../models/index.js';
 
 const SALT_ROUNDS = 12;
 
-type AuthActor = { id: string; role: string; tenantId: string };
+type AuthActor = { id: string; role: string; tenantId: string; access?: string | null };
 
 type UserPatch = {
   name?: string;
@@ -31,7 +32,14 @@ export class UserService {
   }
 
   async listByTutor(actor: AuthActor) {
-    const users = await userRepository.findByTutor(actor.tenantId, actor.id);
+    if (!isTutorActor(actor)) {
+      throw forbidden();
+    }
+    const tutor = await this.requireActorUser(actor);
+    const users = await userRepository.findLearnersByDepartments(
+      actor.tenantId,
+      departmentObjectIds(tutor),
+    );
     return this.withModules(actor.tenantId, users);
   }
 
@@ -43,8 +51,16 @@ export class UserService {
 
   async getProgress(actor: AuthActor, ref: string) {
     const user = await this.requireInTenant(actor.tenantId, ref);
-    if (actor.role !== UserRole.TENANT && actor.id !== String(user._id)) {
-      throw forbidden();
+    const isSelf = actor.id === String(user._id);
+    const isTenantAdmin = actor.role === UserRole.TENANT;
+    if (!isSelf && !isTenantAdmin) {
+      if (!isTutorActor(actor)) {
+        throw forbidden();
+      }
+      const tutor = await this.requireActorUser(actor);
+      if (!sharesDepartment(tutor, user)) {
+        throw forbidden();
+      }
     }
     const serializedUsers = await this.withModules(actor.tenantId, [user]);
     const serialized = serializedUsers[0];
@@ -92,16 +108,17 @@ export class UserService {
     return serialized;
   }
 
-  /** Tutors can create learner accounts that are linked back to them. */
+  /** Tutors can create learner accounts in their assigned departments. */
   async createLearner(
     actor: AuthActor,
     input: {
       email: string;
       password: string;
       name: string;
+      departmentIds?: string[];
     },
   ) {
-    const isTutor = actor.role === UserRole.USER;
+    const isTutor = isTutorActor(actor);
     const isTenantAdmin = actor.role === UserRole.TENANT;
     if (!isTutor && !isTenantAdmin) {
       throw forbidden();
@@ -112,6 +129,17 @@ export class UserService {
       throw new AppError('Email is already registered', ERROR_CODES.EMAIL_IN_USE, 409);
     }
 
+    let departmentIds: mongoose.Types.ObjectId[] = [];
+    if (isTutor) {
+      const tutor = await this.requireActorUser(actor);
+      departmentIds =
+        input.departmentIds !== undefined
+          ? await this.resolveTutorDepartmentIds(actor.tenantId, tutor, input.departmentIds)
+          : departmentObjectIds(tutor);
+    } else if (input.departmentIds !== undefined) {
+      departmentIds = await this.resolveDepartmentIds(actor.tenantId, input.departmentIds);
+    }
+
     const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
     const user = await userRepository.create({
       email: input.email.toLowerCase(),
@@ -120,6 +148,7 @@ export class UserService {
       tenantId: actor.tenantId,
       role: UserRole.USER,
       access: MemberAccess.LEARNER,
+      departmentIds,
       createdBy: actor.id,
     });
 
@@ -135,8 +164,12 @@ export class UserService {
 
     const isSelf = actor.id === String(user._id);
     const isTenantAdmin = actor.role === UserRole.TENANT;
+    const tutor = isTutorActor(actor) ? await this.requireActorUser(actor) : null;
+    const tutorManagesLearner = Boolean(
+      tutor && !isSelf && this.tutorCanManageLearner(tutor, user),
+    );
 
-    if (!isSelf && !isTenantAdmin) {
+    if (!isSelf && !isTenantAdmin && !tutorManagesLearner) {
       throw forbidden();
     }
 
@@ -156,11 +189,11 @@ export class UserService {
       }
     }
 
-    if (patch.password !== undefined && !isSelf && !isTenantAdmin) {
+    if (patch.password !== undefined && !isSelf && !isTenantAdmin && !tutorManagesLearner) {
       throw forbidden();
     }
 
-    if (patch.departmentIds !== undefined && !isTenantAdmin) {
+    if (patch.departmentIds !== undefined && !isTenantAdmin && !tutorManagesLearner) {
       throw forbidden('Only tenant admins can change departments');
     }
 
@@ -185,7 +218,15 @@ export class UserService {
       updates.passwordHash = await bcrypt.hash(patch.password, SALT_ROUNDS);
     }
     if (patch.departmentIds !== undefined) {
-      updates.departmentIds = await this.resolveDepartmentIds(actor.tenantId, patch.departmentIds);
+      if (tutorManagesLearner && tutor) {
+        updates.departmentIds = this.mergeTutorDepartmentIds(
+          tutor,
+          user,
+          await this.resolveTutorDepartmentIds(actor.tenantId, tutor, patch.departmentIds),
+        );
+      } else {
+        updates.departmentIds = await this.resolveDepartmentIds(actor.tenantId, patch.departmentIds);
+      }
     }
     if (patch.access !== undefined) {
       const nextRole = patch.role ?? user.role;
@@ -199,7 +240,11 @@ export class UserService {
       throw notFound('User not found', ERROR_CODES.NOT_FOUND);
     }
 
-    if (patch.departmentIds !== undefined) {
+    const nextRole = updates.role ?? user.role;
+    const nextAccess = updates.access ?? user.access;
+    if (nextRole === UserRole.USER && nextAccess === MemberAccess.TUTOR) {
+      await this.memberModules.deleteByUser(actor.tenantId, id);
+    } else if (patch.departmentIds !== undefined) {
       await this.memberModules.pruneForDepartments(
         actor.tenantId,
         id,
@@ -250,6 +295,14 @@ export class UserService {
     );
   }
 
+  private async requireActorUser(actor: AuthActor) {
+    const user = await userRepository.findById(actor.id);
+    if (!user || String(user.tenantId) !== actor.tenantId) {
+      throw notFound('User not found', ERROR_CODES.NOT_FOUND);
+    }
+    return user;
+  }
+
   private async requireInTenant(tenantId: string, ref: string) {
     let user = null;
     if (isObjectIdString(ref)) {
@@ -265,6 +318,37 @@ export class UserService {
       throw notFound('User not found', ERROR_CODES.NOT_FOUND);
     }
     return user;
+  }
+
+  private tutorCanManageLearner(tutor: UserDocument, learner: UserDocument) {
+    return (
+      learner.role === UserRole.USER &&
+      learner.access !== MemberAccess.TUTOR &&
+      sharesDepartment(tutor, learner)
+    );
+  }
+
+  private async resolveTutorDepartmentIds(
+    tenantId: string,
+    tutor: UserDocument,
+    refs?: string[],
+  ) {
+    const departmentIds = await this.resolveDepartmentIds(tenantId, refs);
+    const allowed = new Set(departmentObjectIds(tutor).map(String));
+    if (departmentIds.some((id) => !allowed.has(String(id)))) {
+      throw forbidden('You can only assign your assigned departments');
+    }
+    return departmentIds;
+  }
+
+  private mergeTutorDepartmentIds(
+    tutor: UserDocument,
+    learner: UserDocument,
+    nextTutorDepartments: mongoose.Types.ObjectId[],
+  ) {
+    const tutorSet = new Set(departmentObjectIds(tutor).map(String));
+    const kept = departmentObjectIds(learner).filter((id) => !tutorSet.has(String(id)));
+    return [...kept, ...nextTutorDepartments];
   }
 
   private async resolveDepartmentIds(tenantId: string, refs?: string[]) {
